@@ -12,6 +12,7 @@ Once the game is finished(the player fails the game), the player will receive th
 - Shiting Ding (s1ding@ucsd.edu)
 - Zhiyuan Chai (zhchai@ucsd.edu)
 - Le Yang (ley004@ucsd.edu)
+- Xinyu Zhou (xiz143@ucsd.edu)
 
 ## Reference
 - https://en.wikipedia.org/wiki/Dinosaur_Game
