@@ -25,6 +25,7 @@ import Control.Monad.Extra (orM)
 import Data.Sequence (Seq(..), (<|))
 import qualified Data.Sequence as S
 import Linear.V2 (V2(..), _x, _y)
+import Control.Lens ((^.))
 import System.Random (Random (..), getStdRandom, newStdGen)
 import qualified Brick.Widgets.Dialog as D
 
@@ -119,7 +120,6 @@ gameProgress
 step :: Game -> Game
 step s = flip execState s . runMaybeT $ do
   MaybeT $ guard . not <$> orM [use paused, use dead]
-
   MaybeT . fmap Just $ locked .= False
   generateBush <|> MaybeT (Just <$> modify move)
 
@@ -153,30 +153,45 @@ distanceToWall Game {_bushPos = bushPoss} = minimum [x | x <- [bushPoss]]
 
 
 
--- | Move snake along in a marquee fashion
+-- | Move dino along in a marquee fashion
 move :: Game -> Game
 move g@Game {_dino = (s :|> _), _bushPos = bushPoss, _dead = l, _score = sc} =
-  g & bushPos .~ ((bushPoss -1) `mod` width)
+  (gravity g) & bushPos .~ ((bushPoss -1) `mod` width)
 
 move _ = error "Dino can't be empty!"
 
+-- Move dino by y on the y axis
+moveDino :: Int -> Game -> Game
+moveDino y game = game & dino %~ fmap(+ V2 0 y)
+
+getDinoY:: Game -> Int
+getDinoY g@Game{_dino = (s :|> x)} = x ^. _y
+
+gravity :: Game -> Game
+gravity g = case (getDinoY g) of
+              0 -> g
+              _ -> (moveDino (-1) g)
 
 lowboard :: Game -> Coord
 lowboard Game { _dir = d, _dino = (a :<| _) } 
   | d == North = a & _y %~ (\y -> height) 
 lowboard _ = error "Dino can't be empty!"
 
-dinoJump :: Game -> Coord
-dinoJump Game { _dir = d, _dino = (a :<| _) } = a & _y %~ (\y -> (y + 3) )
+-- dinoJump :: Game -> Coord
+-- dinoJump Game { _dir = d, _dino = (a :<| _) } = a & _y %~ (\y -> (y + 3) )
 -- TODO: gravity
-
+dinoJump :: Game -> Game
+dinoJump g = if (getDinoY g == 0) then 
+              moveDino 3 g
+              else g
 
 
 -- | Turn game direction (only turns orthogonally)
 --
 -- Implicitly unpauses yet locks game
 turn :: Direction -> Game -> Game
-turn d g@Game { _dino = (s :|> _) } = g & dino .~ (dinoJump g <| s)
+-- turn d g@Game { _dino = (s :|> _) } = g & dino .~ (dinoJump g <| s)
+turn d g = dinoJump g
 
 drawInt :: Int -> Int -> IO Int
 drawInt x y = getStdRandom (randomR (x, y))
