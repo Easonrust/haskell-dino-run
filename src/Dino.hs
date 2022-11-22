@@ -40,6 +40,8 @@ data Game = Game
   , _wall :: Int
   , _randP :: Int
   , _randPs :: Stream Int
+  , _state :: Int	        -- ^ 0:startPage, 1:playPage, 2:gameOverPage
+  , _history :: [Int]
   } deriving (Show)
 
 type Coord = V2 Int
@@ -88,7 +90,9 @@ gameProgress
       _randP = rp,
       _randPs = rps,
       _bushPos = bushPos,
-      _wall = w
+      _wall = w,
+      _state = state,
+      _history = history
     } =
         move
           Game
@@ -102,7 +106,9 @@ gameProgress
               _randP = rp,
               _randPs = rps,
               _bushPos = bushPos,
-              _wall = w
+              _wall = w,
+              _state = state,
+      		  _history = history
             }
 
 
@@ -192,6 +198,8 @@ initGame = do
         , _randPs = randps
         , _bushPos = width - 1
         , _wall = 0
+        , _state = 1
+        , _history = []
         }
   return g
 

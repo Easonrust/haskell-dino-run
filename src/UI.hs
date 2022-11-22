@@ -25,6 +25,7 @@ import qualified Brick.Widgets.Border as B
 import qualified Brick.Widgets.Border.Style as BS
 import qualified Brick.Widgets.List as L
 import qualified Brick.Widgets.Center as C
+import qualified Brick.Widgets.Dialog as D
 import Control.Lens ((^.))
 import qualified Graphics.Vty as V
 import Data.Sequence (Seq)
@@ -49,7 +50,7 @@ data Cell = Bush | Dino | Empty
 -- App definition
 
 app :: App Game Tick Name
-app = App { appDraw = drawGame
+app = App { appDraw = drawUI
           , appChooseCursor = neverShowCursor
           , appHandleEvent = handleEvent
           , appStartEvent = return
@@ -84,11 +85,37 @@ handleEvent g (VtyEvent (V.EvKey V.KEsc []))        = halt g
 handleEvent g _                                     = continue g
 
 -- Drawing
-drawGame :: Game -> [Widget Name]
-drawGame g@Game{_dead=d} = if d then [ C.center $ padRight (Pad 2) (drawStats g)] else drawUI g
 
 drawUI :: Game -> [Widget Name]
-drawUI g = [ C.center $ padRight (Pad 2) (drawStats g) <+> drawGridSingle g ]
+drawUI g = case _state g of
+  0 -> drawStartPage g
+  1 -> drawPlayPage g
+  2 -> drawEndPage g
+  
+drawStartPage :: Game -> [Widget n]
+drawStartPage g = [ui]
+  where
+    ui = D.renderDialog startPageChoices $ C.hCenter $ padAll 1 $ str "   "
+
+startPageChoices :: D.Dialog Int
+startPageChoices = D.dialog (Just "Dino Run!!!") (Just (0, [ ("Start", 0),("Quit", 1),("ScoreBoard", 2)])) 50
+
+drawEndPage :: Game -> [Widget n]
+drawEndPage g = [C.center $ padRight (Pad 2) (drawGameOver g)]
+
+drawGameOver :: Game -> Widget n
+drawGameOver g = 
+  vBox $
+    str "   Game Over" :
+    str " Your Score is: " :
+    (str <$>  ["\t" <>  (show i) | i <- [g ^.score] ])
+    
+
+drawPlayPage :: Game -> [Widget Name]
+drawPlayPage g@Game{_dead=d} = if d then [ C.center $ padRight (Pad 2) (drawStats g)] else drawPlayUI g
+
+drawPlayUI :: Game -> [Widget Name]
+drawPlayUI g = [ C.center $ padRight (Pad 2) (drawStats g) <+> drawGridSingle g ]
 
 drawStats :: Game -> Widget Name
 drawStats g@Game{_dead = d} = 
@@ -107,10 +134,10 @@ drawScore n = withBorderStyle BS.unicodeBold
   $ padAll 1
   $ str $ show n
 
-drawGameOver :: Game ->  Widget Name
-drawGameOver g  =  vBox $ str "   Game Over" :
-                             str " Your Score is" :
-                             (str <$>  ["\t" <>  (show i) | i <- [g ^.score] ])
+-- drawGameOver :: Game ->  Widget Name
+-- drawGameOver g  =  vBox $ str "   Game Over" :
+--                             str " Your Score is" :
+--                             (str <$>  ["\t" <>  (show i) | i <- [g ^.score] ])
 
 drawGrid :: Game -> Widget Name
 drawGrid g = withBorderStyle BS.unicodeBold
