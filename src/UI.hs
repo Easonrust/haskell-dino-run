@@ -25,6 +25,7 @@ import qualified Brick.Widgets.Border as B
 import qualified Brick.Widgets.Border.Style as BS
 import qualified Brick.Widgets.List as L
 import qualified Brick.Widgets.Center as C
+import qualified Brick.Widgets.Dialog as D
 import Control.Lens ((^.))
 import qualified Graphics.Vty as V
 import Data.Sequence (Seq)
@@ -49,8 +50,8 @@ data Cell = Bush | Dino | Empty
 -- App definition
 
 app :: App Game Tick Name
-app = App { appDraw = drawGame
-          , appChooseCursor = neverShowCursor
+app = App { appDraw = drawUI
+          , appChooseCursor = const . const Nothing
           , appHandleEvent = handleEvent
           , appStartEvent = return
           , appAttrMap = const theMap
@@ -77,18 +78,56 @@ main = do
 
 
 handleEvent :: Game -> BrickEvent Name Tick -> EventM Name (Next Game)
+handleEvent g@Game{_state = 0} (VtyEvent ev)		= handleStartPage g ev
 handleEvent g (AppEvent Tick)                       = continue $ gameProgress (step g)
 handleEvent g (VtyEvent (V.EvKey V.KUp []))         = continue $ turn North g
 handleEvent g (VtyEvent (V.EvKey (V.KChar 'r') [])) = liftIO (initGame) >>= continue
 handleEvent g (VtyEvent (V.EvKey V.KEsc []))        = halt g
 handleEvent g _                                     = continue g
 
+
+-- page transfer
+handleStartPage :: Game -> V.Event -> EventM n (Next Game)
+handleStartPage g ev = case ev of
+  V.EvKey V.KEsc []   -> Brick.halt g
+  V.EvKey V.KEnter [] -> do
+    dialog <- D.handleDialogEvent ev (_startPageChoices g)
+    case (D.dialogSelection dialog) of
+      Just 0  -> Brick.continue (g {_state = 1})
+      Just 1  -> Brick.halt g
+      Nothing -> Brick.continue (g {_state = 0})
+  _ -> do
+    dialog <- D.handleDialogEvent ev (_startPageChoices g)
+    Brick.continue (g {_startPageChoices = dialog})
+  
 -- Drawing
-drawGame :: Game -> [Widget Name]
-drawGame g@Game{_dead=d} = if d then [ C.center $ padRight (Pad 2) (drawStats g)] else drawUI g
 
 drawUI :: Game -> [Widget Name]
-drawUI g = [ C.center $ padRight (Pad 2) (drawStats g) <+> drawGridSingle g ]
+drawUI g@Game{_state = 0} = drawStartPage g
+drawUI g@Game{_state = 1} = drawPlayPage g
+drawUI g@Game{_state = 2} = drawEndPage g
+  
+drawStartPage :: Game -> [Widget n]
+drawStartPage g = [ui]
+  where
+    ui = D.renderDialog (_startPageChoices g) $ C.hCenter $ padAll 1 $ str "   "
+
+drawEndPage :: Game -> [Widget n]
+drawEndPage g = [C.center $ padRight (Pad 2) (drawGameOver g)]
+
+drawGameOver :: Game -> Widget n
+drawGameOver g = 
+  vBox $
+    str "   Game Over" :
+    str " Your Score is: " :
+    (str <$>  ["\t" <>  (show i) | i <- [g ^.score] ])
+    
+
+drawPlayPage :: Game -> [Widget Name]
+drawPlayPage g@Game{_dead=d} = if d then [ C.center $ padRight (Pad 2) (drawStats g)] else drawPlayUI g
+
+drawPlayUI :: Game -> [Widget Name]
+drawPlayUI g = [ C.center $ padRight (Pad 2) (drawStats g) <+> drawGridSingle g ]
 
 drawStats :: Game -> Widget Name
 drawStats g@Game{_dead = d} = 
@@ -107,10 +146,10 @@ drawScore n = withBorderStyle BS.unicodeBold
   $ padAll 1
   $ str $ show n
 
-drawGameOver :: Game ->  Widget Name
-drawGameOver g  =  vBox $ str "   Game Over" :
-                             str " Your Score is" :
-                             (str <$>  ["\t" <>  (show i) | i <- [g ^.score] ])
+-- drawGameOver :: Game ->  Widget Name
+-- drawGameOver g  =  vBox $ str "   Game Over" :
+--                             str " Your Score is" :
+--                             (str <$>  ["\t" <>  (show i) | i <- [g ^.score] ])
 
 drawGrid :: Game -> Widget Name
 drawGrid g = withBorderStyle BS.unicodeBold
@@ -159,6 +198,9 @@ theMap = attrMap V.defAttr
   [ (bushAttr, V.blue `on` V.blue)
   , (dinoAttr, V.red `on` V.red)
   , (gameOverAttr, fg V.red `V.withStyle` V.bold)
+  , (D.dialogAttr, V.white `on` V.blue)
+  , (D.buttonAttr, V.black `on` V.white)
+  , (D.buttonSelectedAttr, V.yellow `on` V.white)
   ]
 
 gameOverAttr :: AttrName
