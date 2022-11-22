@@ -26,6 +26,7 @@ import Data.Sequence (Seq(..), (<|))
 import qualified Data.Sequence as S
 import Linear.V2 (V2(..), _x, _y)
 import System.Random (Random (..), getStdRandom, newStdGen)
+import qualified Brick.Widgets.Dialog as D
 
 -- Types
 
@@ -42,7 +43,8 @@ data Game = Game
   , _randPs :: Stream Int
   , _state :: Int	        -- ^ 0:startPage, 1:playPage, 2:gameOverPage
   , _history :: [Int]
-  } deriving (Show)
+  , _startPageChoices :: D.Dialog Int
+  } -- deriving (Show)
 
 type Coord = V2 Int
 
@@ -92,7 +94,8 @@ gameProgress
       _bushPos = bushPos,
       _wall = w,
       _state = state,
-      _history = history
+      _history = history,
+      _startPageChoices = spc
     } =
         move
           Game
@@ -108,7 +111,8 @@ gameProgress
               _bushPos = bushPos,
               _wall = w,
               _state = state,
-      		  _history = history
+      		  _history = history,
+      		  _startPageChoices = spc
             }
 
 
@@ -198,8 +202,9 @@ initGame = do
         , _randPs = randps
         , _bushPos = width - 1
         , _wall = 0
-        , _state = 1
+        , _state = 0
         , _history = []
+        , _startPageChoices = D.dialog (Just "Dino Run!!!") (Just (0, [ ("Start", 0),("Quit", 1) ])) 50
         }
   return g
 
