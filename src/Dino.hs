@@ -14,6 +14,7 @@ module Dino
   ,gameProgress
   ) where
 import System.IO
+import System.IO.Unsafe
 import Control.Applicative ((<|>))
 import Control.Monad (guard)
 import Data.Maybe (fromMaybe)
@@ -33,6 +34,9 @@ import qualified Brick.Widgets.Dialog as D
 
 data Game = Game
   { _dino  :: Dino  -- ^ snake as a sequence of points in N2
+  , _velocity :: Int
+  , _interval :: Int
+  , _interval_len :: Int
   , _dir    :: Direction    -- ^ direction
   , _dead   :: Bool         -- ^ game over flag
   , _paused :: Bool         -- ^ paused flag
@@ -65,11 +69,12 @@ makeLenses ''Game
 
 -- Constants
 
-height, width, gapSize, offset :: Int
+height, width, gapSize, offset, initVelocity :: Int
 height = 30
 width = 30
 gapSize = height * 3 `div` 10
 offset = height `div` 6
+initVelocity = 5
 
 -- Functions
 split :: String -> [String] 
@@ -87,6 +92,9 @@ gameProgress
       _score = s,
       -- the rest
       _dino = a,
+      _velocity = v,
+      _interval = i,
+      _interval_len = len,
       _dir = d,
       _paused = p,
       _locked = m,
@@ -104,6 +112,9 @@ gameProgress
               _score = s + 5,
               -- the rest
               _dino = a,
+              _velocity = v,
+              _interval = i - 1,
+              _interval_len = len,
               _dir = d,
               _paused = p,
               _locked = m,
@@ -155,22 +166,31 @@ distanceToWall Game {_bushPos = bushPoss} = minimum [x | x <- [bushPoss]]
 
 -- | Move dino along in a marquee fashion
 move :: Game -> Game
-move g@Game {_dino = (s :|> _), _bushPos = bushPoss, _dead = l, _score = sc} =
-  (gravity g) & bushPos .~ ((bushPoss -1) `mod` width)
+move g@Game {_dino = (s :|> _), _bushPos = bushPoss, _dead = l, _score = sc, _interval = intr, _interval_len = len} =
+  if (intr == 0) then
+  (gravity g) & bushPos .~ ((bushPoss -1) `mod` width) & interval .~ (len) & velocity %~ (lossVelocity 1)
+  else g & bushPos .~ ((bushPoss -1) `mod` width)
 
 move _ = error "Dino can't be empty!"
 
+lossVelocity :: Int -> Int -> Int
+lossVelocity a v = if (v - a <= -initVelocity) then 
+                    -initVelocity
+                    else  v - a;
+
 -- Move dino by y on the y axis
 moveDino :: Int -> Game -> Game
-moveDino y game = game & dino %~ fmap(+ V2 0 y)
+moveDino y game = if (getDinoY game + y <= 0) then 
+                  game & dino %~ fmap(+ V2 0 (-(getDinoY game)))
+                  else game & dino %~ fmap(+ V2 0 y)
 
 getDinoY:: Game -> Int
 getDinoY g@Game{_dino = (s :|> x)} = x ^. _y
 
 gravity :: Game -> Game
-gravity g = case (getDinoY g) of
+gravity g@Game {_velocity = v} = case (getDinoY g) of
               0 -> g
-              _ -> (moveDino (-1) g)
+              _ -> (moveDino v g)
 
 lowboard :: Game -> Coord
 lowboard Game { _dir = d, _dino = (a :<| _) } 
@@ -181,9 +201,9 @@ lowboard _ = error "Dino can't be empty!"
 -- dinoJump Game { _dir = d, _dino = (a :<| _) } = a & _y %~ (\y -> (y + 3) )
 -- TODO: gravity
 dinoJump :: Game -> Game
-dinoJump g = if (getDinoY g == 0) then 
-              moveDino 3 g
-              else g
+dinoJump g@Game {_interval_len = len, _velocity = v} = if (getDinoY g == 0) then 
+              moveDino initVelocity (g & velocity .~ (initVelocity - 1)  & interval .~ (len))
+              else g & velocity %~ (\_ -> 0)
 
 
 -- | Turn game direction (only turns orthogonally)
@@ -207,7 +227,10 @@ initGame = do
   let xm = 0
       ym = 0
       g  = Game
-        { _dino  = (S.singleton (V2 xm ym))
+        { _dino  = initDino
+        , _velocity = 0
+        , _interval = 1
+        , _interval_len = 1
         , _score  = 0
         , _dir    = South
         , _dead   = False
@@ -225,3 +248,21 @@ initGame = do
 
 fromList :: [a] -> Stream a
 fromList = foldr (:|) (error "Streams must be infinite")
+
+
+initDino :: Dino
+initDino = unsafePerformIO initDino'
+
+initDino' :: IO Dino
+initDino' =  openFile "out.txt" ReadMode >>= \handle ->
+    hGetContents handle >>= \contents -> 
+    return (executeList (helperfnc (words contents)))
+--    hClose handle  
+     
+
+executeList :: [Int] -> Dino
+executeList (x:y:xs) = (S.singleton (V2 y x)) S.>< (executeList xs);
+executeList _ = S.empty
+
+helperfnc :: [String] -> [Int]
+helperfnc = map read
