@@ -31,6 +31,7 @@ import qualified Graphics.Vty as V
 import Data.Sequence (Seq)
 import qualified Data.Sequence as S
 import Linear.V2 (V2(..))
+import Data.Monoid
 
 -- Types
 
@@ -151,18 +152,18 @@ drawScore n = withBorderStyle BS.unicodeBold
 --                             str " Your Score is" :
 --                             (str <$>  ["\t" <>  (show i) | i <- [g ^.score] ])
 
-drawGrid :: Game -> Widget Name
-drawGrid g = withBorderStyle BS.unicodeBold
-  $ B.borderWithLabel (str "Dino Run")
-  $ vBox rows
-  where
-    rows         = [hBox $ cellsInRow r | r <- [height-1,height-2..0]]
-    cellsInRow y = [drawCoord (V2 x y) | x <- [0..width-1]]
-    drawCoord    = drawCell . cellAt
-    cellAt c
-      | c `elem` g ^. dino = Dino
-      | isBush g c         = Bush
-      | otherwise          = Empty
+-- drawGrid :: Game -> Widget Name
+-- drawGrid g = withBorderStyle BS.unicodeBold
+--   $ B.borderWithLabel (str "Dino Run")
+--   $ vBox rows
+--   where
+--     rows         = [hBox $ cellsInRow r | r <- [height-1,height-2..0]]
+--     cellsInRow y = [drawCoord (V2 x y) | x <- [0..width-1]]
+--     drawCoord    = drawCell . cellAt
+--     cellAt c
+--       | c `elem` g ^. dino = Dino
+--       | isBush g c         = Bush
+--       | otherwise          = Empty
 
 drawGridSingle :: Game -> Widget Name
 drawGridSingle g = withBorderStyle BS.unicodeBold
@@ -173,14 +174,16 @@ drawGridSingle g = withBorderStyle BS.unicodeBold
     cellsInRow y = [drawCoord (V2 x y) | x <- [0..width-1]]
     drawCoord    = drawCell . cellAt
     cellAt c
-      | c `elem` g ^. dino = Dino
-      | isBush g c         = Bush
-      | otherwise          = Empty
+      | c `elem` g ^. dino   = Dino
+      | isBush c (g^.bushes) = Bush
+      | otherwise            = Empty
 
-isBush :: Game -> V2 Int -> Bool
-isBush g (V2 x y)
-  | x == g ^. bushX && (y `elem` [0 .. 2]) = True
-  | otherwise = False
+isBush :: Coord -> Seq Bush -> Bool
+isBush c bs = getAny $ foldMap (Any . isBush' c) bs
+
+isBush' :: Coord -> Bush -> Bool
+isBush' c b = c `elem` b
+isBush' _ _  = False
 
 gapSize :: Int
 gapSize = height * 3 `div` 10

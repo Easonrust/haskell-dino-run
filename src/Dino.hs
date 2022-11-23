@@ -7,10 +7,11 @@ module Dino
   , turn
   , Game(..)
   , Direction(..)
+  , Bush
+  , Coord
   , dead,  score, dino
   , height, width
-  -- from C branch
-  ,bushX
+  , bushes
   ) where
 import System.IO
 import System.IO.Unsafe
@@ -28,12 +29,14 @@ import Linear.V2 (V2(..), _x, _y)
 import Control.Lens ((^.))
 import System.Random (Random (..), getStdRandom, newStdGen)
 import qualified Brick.Widgets.Dialog as D
+import Data.Monoid
 
 -- Types
 
 data Game = Game
   { _dino  :: Dino  -- ^ snake as a sequence of points in N2
   , _dino_state :: DinoState
+  , _bushes :: Seq Bush
   , _velocity :: Int
   , _interval :: Int
   , _interval_len :: Int
@@ -42,7 +45,6 @@ data Game = Game
   , _paused :: Bool         -- ^ paused flag
   , _score  :: Int          -- ^ score
   , _locked :: Bool   
-  , _bushX :: Int
   , _wall :: Int
   , _randP :: Int
   , _randPs :: Stream Int
@@ -54,7 +56,7 @@ data Game = Game
 type Coord = V2 Int
 
 type Dino = Seq Coord
-
+type Bush = Seq Coord
 data DinoState = LeftDino | RightDino | JumpDino | DeadDino
 
 data Stream a = a :| Stream a
@@ -72,8 +74,8 @@ makeLenses ''Game
 -- Constants
 
 height, width, gapSize, offset, initVelocity :: Int
-height = 30
-width = 30
+height = 60
+width = 60
 gapSize = height * 3 `div` 10
 offset = height `div` 6
 initVelocity = 5
@@ -103,54 +105,61 @@ die = do
   MaybeT . fmap guard $ (isDie <$> get)
   MaybeT . fmap Just $ dead .= True
 
+-- TODO:
 isDie :: Game -> Bool
-isDie g@Game {_dino = ((V2 xm ym) :<| _), _bushX = bushXs}   
-  | collide xm ym bushXs 2   = True
-isDie _                      = False
+isDie g@Game {_dino = dino, _bushes = bushes} = getAny $ foldMap (Any . flip collide bushes) dino
 
-collide :: Int -> Int -> Int -> Int -> Bool
-collide dx dy bx by = dx == (bx-1) && (dy `elem` [0 .. by])
+collide :: Coord -> Seq Bush -> Bool
+collide dino bushes = getAny $ foldMap (Any . collide' dino) bushes
+
+-- check to see if crashed in a specific obstacle
+collide' :: Coord -> Bush -> Bool
+collide' dino bush = dino `elem` bush
 
 step':: Game -> Game
 step' = move . increaseScore . decreaseInterval
 
-generateBush :: MaybeT (State Game) ()
-generateBush = do
-  MaybeT . fmap guard $ (==) <$> (distanceToWall <$> get) <*> use wall
-  MaybeT . fmap Just $ do
-    get >>= \g -> modifying bushX (nextBushPos g)
-    nextRandomBush
+-- TODO: generate infinity bushes list
+-- generateBush :: MaybeT (State Game) ()
+-- generateBush = do
+--   MaybeT . fmap guard $ (==) <$> (distanceToWall <$> get) <*> use wall
+--   MaybeT . fmap Just $ do
+--     get >>= \g -> modifying bushX (nextBushPos g)
+--     nextRandomBush
 
-nextRandomBush :: State Game ()
-nextRandomBush =
-  do
-    (randp :| randps) <- use randPs
-    randPs .= randps
-    g <- get
-    let touchWall = _bushX g == 0
-    if touchWall
-      then nextRandomBush
-      else randP .= randp
+-- nextRandomBush :: State Game ()
+-- nextRandomBush =
+--   do
+--     (randp :| randps) <- use randPs
+--     randPs .= randps
+--     g <- get
+--     let touchWall = _bushX g == 0
+--     if touchWall
+--       then nextRandomBush
+--       else randP .= randp
 
 
 --move bush to the left by decreasing the x-coord
-nextBushPos :: Game -> Int -> Int
-nextBushPos g x = (x -1) `mod` width
+-- nextBushPos :: Game -> Int -> Int
+-- nextBushPos g x = (x -1) `mod` width
 
-distanceToWall :: Game -> Int
-distanceToWall Game {_bushX = bushXs} = minimum [x | x <- [bushXs]]
+-- distanceToWall :: Game -> Int
+-- distanceToWall Game {_bushX = bushXs} = minimum [x | x <- [bushXs]]
 
 -- TODO collision and die
 
 
 
 -- | Move dino along in a marquee fashion
-move g@Game {_dino = (s :|> _), _bushX = bushXs, _dead = l, _score = sc, _interval = intr, _interval_len = len} =
+move g@Game {_dino = (s :|> _), _dead = l, _score = sc, _interval = intr, _interval_len = len} =
   if (intr == 0) then
-  (gravity g) & bushX .~ ((bushXs -1) `mod` width) & interval .~ (len) & velocity %~ (lossVelocity 1)
-  else g & bushX .~ ((bushXs -1) `mod` width)
-
+  (gravity g) & bushes %~ (fmap moveBush) & interval .~ (len) & velocity %~ (lossVelocity 1)
+--   else g & bushX .~ ((bushXs -1) `mod` width)
+  else g & bushes %~ (fmap moveBush)
 move _ = error "Dino can't be empty!"
+
+moveBush :: Bush -> Bush
+moveBush bush  = fmap (+ V2 (-1) 0) bush 
 
 lossVelocity :: Int -> Int -> Int
 lossVelocity a v = if (v - a <= -initVelocity) then 
@@ -229,7 +238,7 @@ initGame = do
         , _locked = False
         , _randP = randp
         , _randPs = randps
-        , _bushX = width - 1
+        , _bushes = S.fromList [makeBush (width-1)]
         , _wall = 0
         , _state = 0
         , _history = []
@@ -260,10 +269,13 @@ initDino' :: String -> IO Dino
 initDino' file =  openFile file ReadMode >>= \handle ->
     hGetContents handle >>= \contents -> 
     return (executeList (helperfnc (words contents)))
+
+makeBush :: Int -> Bush
+makeBush bushX = S.fromList [V2 bushX 0, V2 bushX 1, V2 bushX 2]
      
 
 executeList :: [Int] -> Dino
-executeList (x:y:xs) = (S.singleton (V2 y x)) S.>< (executeList xs);
+executeList (x:y:xs) = (S.singleton (V2 (y `div` 2) (x `div` 2))) S.>< (executeList xs);
 executeList _ = S.empty
 
 helperfnc :: [String] -> [Int]
