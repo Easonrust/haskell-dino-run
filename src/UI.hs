@@ -79,7 +79,7 @@ main = do
 
 handleEvent :: Game -> BrickEvent Name Tick -> EventM Name (Next Game)
 handleEvent g@Game{_state = 0} (VtyEvent ev)		= handleStartPage g ev
-handleEvent g (AppEvent Tick)                       = continue $ gameProgress (step g)
+handleEvent g (AppEvent Tick)                       = continue $ step g
 handleEvent g (VtyEvent (V.EvKey V.KUp []))         = continue $ turn North g
 handleEvent g (VtyEvent (V.EvKey (V.KChar 'r') [])) = liftIO (initGame) >>= continue
 handleEvent g (VtyEvent (V.EvKey V.KEsc []))        = halt g
@@ -179,7 +179,7 @@ drawGridSingle g = withBorderStyle BS.unicodeBold
 
 isBush :: Game -> V2 Int -> Bool
 isBush g (V2 x y)
-  | x == g ^. bushPos && (y `elem` [0 .. 5]) = True
+  | x == g ^. bushX && (y `elem` [0 .. 2]) = True
   | otherwise = False
 
 gapSize :: Int
