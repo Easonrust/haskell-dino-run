@@ -34,6 +34,7 @@ import qualified Brick.Widgets.Dialog as D
 
 data Game = Game
   { _dino  :: Dino  -- ^ snake as a sequence of points in N2
+  , _dino_state :: DinoState
   , _velocity :: Int
   , _interval :: Int
   , _interval_len :: Int
@@ -54,6 +55,8 @@ data Game = Game
 type Coord = V2 Int
 
 type Dino = Seq Coord
+
+data DinoState = LeftDino | RightDino | JumpDino | DeadDino
 
 data Stream a = a :| Stream a
   deriving (Show)
@@ -92,6 +95,7 @@ gameProgress
       _score = s,
       -- the rest
       _dino = a,
+      _dino_state = dino_state,
       _velocity = v,
       _interval = i,
       _interval_len = len,
@@ -112,6 +116,7 @@ gameProgress
               _score = s + 5,
               -- the rest
               _dino = a,
+              _dino_state = dino_state,
               _velocity = v,
               _interval = i - 1,
               _interval_len = len,
@@ -188,9 +193,13 @@ getDinoY:: Game -> Int
 getDinoY g@Game{_dino = (s :|> x)} = x ^. _y
 
 gravity :: Game -> Game
-gravity g@Game {_velocity = v} = case (getDinoY g) of
-              0 -> g
+gravity g@Game {_velocity = v, _dino_state = state} = case (getDinoY g) of
+              0 -> (case (state) of
+                    LeftDino -> g & dino .~ (rightDino) & dino_state .~ (RightDino)
+                    RightDino -> g & dino .~ (leftDino) & dino_state .~ (LeftDino)
+                    _ -> g & dino .~ (leftDino) & dino_state .~ (LeftDino))
               _ -> (moveDino v g)
+                    
 
 lowboard :: Game -> Coord
 lowboard Game { _dir = d, _dino = (a :<| _) } 
@@ -202,8 +211,9 @@ lowboard _ = error "Dino can't be empty!"
 -- TODO: gravity
 dinoJump :: Game -> Game
 dinoJump g@Game {_interval_len = len, _velocity = v} = if (getDinoY g == 0) then 
-              moveDino initVelocity (g & velocity .~ (initVelocity - 1)  & interval .~ (len))
-              else g & velocity %~ (\_ -> 0)
+              moveDino initVelocity (g & velocity .~ (initVelocity - 1)  & interval .~ (len) & 
+              dino .~ (jumpDino) & dino_state .~ (JumpDino))
+              else g & velocity %~ (\_ -> 0) 
 
 
 -- | Turn game direction (only turns orthogonally)
@@ -227,7 +237,8 @@ initGame = do
   let xm = 0
       ym = 0
       g  = Game
-        { _dino  = initDino
+        { _dino  = leftDino
+        , _dino_state = LeftDino
         , _velocity = 0
         , _interval = 1
         , _interval_len = 1
@@ -250,14 +261,25 @@ fromList :: [a] -> Stream a
 fromList = foldr (:|) (error "Streams must be infinite")
 
 
-initDino :: Dino
-initDino = unsafePerformIO initDino'
+leftDino :: Dino
+leftDino = makeDino "image/out_left.txt"
 
-initDino' :: IO Dino
-initDino' =  openFile "out.txt" ReadMode >>= \handle ->
+rightDino :: Dino
+rightDino = makeDino "image/out_right.txt"
+
+jumpDino :: Dino
+jumpDino = makeDino "image/out_jump.txt"
+
+diedDino :: Dino
+diedDino = makeDino "image/out_dead.txt"
+
+makeDino :: String -> Dino
+makeDino file = unsafePerformIO (initDino' file)
+
+initDino' :: String -> IO Dino
+initDino' file =  openFile file ReadMode >>= \handle ->
     hGetContents handle >>= \contents -> 
     return (executeList (helperfnc (words contents)))
---    hClose handle  
      
 
 executeList :: [Int] -> Dino
