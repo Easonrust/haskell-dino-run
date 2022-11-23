@@ -112,7 +112,7 @@ collide :: Int -> Int -> Int -> Int -> Bool
 collide dx dy bx by = dx == (bx-1) && (dy `elem` [0 .. by])
 
 step':: Game -> Game
-step' = move . increaseScore
+step' = move . increaseScore . decreaseInterval
 
 generateBush :: MaybeT (State Game) ()
 generateBush = do
@@ -145,10 +145,10 @@ distanceToWall Game {_bushX = bushXs} = minimum [x | x <- [bushXs]]
 
 
 -- | Move dino along in a marquee fashion
-move g@Game {_dino = (s :|> _), _bushPos = bushPoss, _dead = l, _score = sc, _interval = intr, _interval_len = len} =
+move g@Game {_dino = (s :|> _), _bushX = bushXs, _dead = l, _score = sc, _interval = intr, _interval_len = len} =
   if (intr == 0) then
-  (gravity g) & bushPos .~ ((bushPoss -1) `mod` width) & interval .~ (len) & velocity %~ (lossVelocity 1)
-  else g & bushPos .~ ((bushPoss -1) `mod` width)
+  (gravity g) & bushX .~ ((bushXs -1) `mod` width) & interval .~ (len) & velocity %~ (lossVelocity 1)
+  else g & bushX .~ ((bushXs -1) `mod` width)
 
 move _ = error "Dino can't be empty!"
 
@@ -190,7 +190,10 @@ dinoJump g@Game {_interval_len = len, _velocity = v} = if (getDinoY g == 0) then
               else g & velocity %~ (\_ -> 0) 
 
 increaseScore :: Game -> Game
-increaseScore g = g & score %~ (+5)
+increaseScore g@Game {_score = s} = g & score .~ (s+5)
+
+decreaseInterval :: Game -> Game
+decreaseInterval g@Game {_interval = i} = g & interval .~ (i-1)
 
 
 -- | Turn game direction (only turns orthogonally)
