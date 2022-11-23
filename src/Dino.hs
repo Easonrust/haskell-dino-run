@@ -10,8 +10,7 @@ module Dino
   , dead,  score, dino
   , height, width
   -- from C branch
-  ,bushPos
-  ,gameProgress
+  ,bushX
   ) where
 import System.IO
 import Control.Applicative ((<|>))
@@ -38,7 +37,7 @@ data Game = Game
   , _paused :: Bool         -- ^ paused flag
   , _score  :: Int          -- ^ score
   , _locked :: Bool   
-  , _bushPos :: Int
+  , _bushX :: Int
   , _wall :: Int
   , _randP :: Int
   , _randPs :: Stream Int
@@ -79,55 +78,40 @@ split (c:cs)
     | otherwise = (c : head rest) : tail rest 
     where rest = split cs
     
--- | Step forward in time
-gameProgress :: Game -> Game
-gameProgress
-  g@Game
-    { _dead = l,
-      _score = s,
-      -- the rest
-      _dino = a,
-      _dir = d,
-      _paused = p,
-      _locked = m,
-      _randP = rp,
-      _randPs = rps,
-      _bushPos = bushPos,
-      _wall = w,
-      _state = state,
-      _history = history,
-      _startPageChoices = spc
-    } =
-        move
-          Game
-            { _dead = l,
-              _score = s + 5,
-              -- the rest
-              _dino = a,
-              _dir = d,
-              _paused = p,
-              _locked = m,
-              _randP = rp,
-              _randPs = rps,
-              _bushPos = bushPos,
-              _wall = w,
-              _state = state,
-      		  _history = history,
-      		  _startPageChoices = spc
-            }
-
 
 step :: Game -> Game
 step s = flip execState s . runMaybeT $ do
-  MaybeT $ guard . not <$> orM [use paused, use dead]
-  MaybeT . fmap Just $ locked .= False
-  generateBush <|> MaybeT (Just <$> modify move)
+
+  -- Make sure the game isn't paused or over
+  MaybeT $ guard . not <$> orM [use dead]
+
+  -- Unlock from last directional turn
+--   MaybeT . fmap Just $ locked .= False
+
+  -- die (moved into boundary), eat (moved into food), or move (move into space)
+  die <|> MaybeT (Just <$> modify step')
+
+die :: MaybeT (State Game) ()
+die = do
+  MaybeT . fmap guard $ (isDie <$> get)
+  MaybeT . fmap Just $ dead .= True
+
+isDie :: Game -> Bool
+isDie g@Game {_dino = ((V2 xm ym) :<| _), _bushX = bushXs}   
+  | collide xm ym bushXs 2   = True
+isDie _                      = False
+
+collide :: Int -> Int -> Int -> Int -> Bool
+collide dx dy bx by = dx == (bx-1) && (dy `elem` [0 .. by])
+
+step':: Game -> Game
+step' = move . increaseScore
 
 generateBush :: MaybeT (State Game) ()
 generateBush = do
   MaybeT . fmap guard $ (==) <$> (distanceToWall <$> get) <*> use wall
   MaybeT . fmap Just $ do
-    get >>= \g -> modifying bushPos (nextBushPos g)
+    get >>= \g -> modifying bushX (nextBushPos g)
     nextRandomBush
 
 nextRandomBush :: State Game ()
@@ -136,7 +120,7 @@ nextRandomBush =
     (randp :| randps) <- use randPs
     randPs .= randps
     g <- get
-    let touchWall = _bushPos g == 0
+    let touchWall = _bushX g == 0
     if touchWall
       then nextRandomBush
       else randP .= randp
@@ -147,7 +131,7 @@ nextBushPos :: Game -> Int -> Int
 nextBushPos g x = (x -1) `mod` width
 
 distanceToWall :: Game -> Int
-distanceToWall Game {_bushPos = bushPoss} = minimum [x | x <- [bushPoss]]
+distanceToWall Game {_bushX = bushXs} = minimum [x | x <- [bushXs]]
 
 -- TODO collision and die
 
@@ -155,8 +139,8 @@ distanceToWall Game {_bushPos = bushPoss} = minimum [x | x <- [bushPoss]]
 
 -- | Move dino along in a marquee fashion
 move :: Game -> Game
-move g@Game {_dino = (s :|> _), _bushPos = bushPoss, _dead = l, _score = sc} =
-  (gravity g) & bushPos .~ ((bushPoss -1) `mod` width)
+move g@Game {_dino = (s :|> _), _bushX = bushXs} =
+  (gravity g) & bushX .~ ((bushXs -1) `mod` width)
 
 move _ = error "Dino can't be empty!"
 
@@ -182,8 +166,11 @@ lowboard _ = error "Dino can't be empty!"
 -- TODO: gravity
 dinoJump :: Game -> Game
 dinoJump g = if (getDinoY g == 0) then 
-              moveDino 3 g
+              moveDino 6 g
               else g
+
+increaseScore :: Game -> Game
+increaseScore g = g & score %~ (+5)
 
 
 -- | Turn game direction (only turns orthogonally)
@@ -215,7 +202,7 @@ initGame = do
         , _locked = False
         , _randP = randp
         , _randPs = randps
-        , _bushPos = width - 1
+        , _bushX = width - 1
         , _wall = 0
         , _state = 0
         , _history = []
