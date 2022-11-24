@@ -10,15 +10,19 @@ Once the game is finished(the player fails the game), the player will receive th
 
 ## Architecture
 
-- UI: Built by Brick. Shows the game start page, score board and game over page.
+- UI: Built by Brick. Shows the game start page, score board and game over page. Also contains keyboard input and tick event handler.
+- Dino: Built by Brick. Contains the main logic of the game
 
 ## Challenges
 
-- TODO
+- Team Collaboration: It is difficult to distribute the tasks reasonably. Also most of team members have different deadlines from other course, so we use WeChat to share ideas.
 
 ## Progress
 
-- Successfully create the game start page and jump from it to game playing page.
+- Successfully creates the game start page and jump from it to game playing page.
+- Successfully sets the basic game logic including dino moving, bushes moving.
+- Successfully implements the collision detection for the dino and bushes.
+- Successfully Implements character animation.
 
 ## Team Members
 - Shiting Ding (s1ding@ucsd.edu)
