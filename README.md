@@ -8,6 +8,18 @@ Once the game is finished(the player fails the game), the player will receive th
 - [ ] Gradually increase the game difficulty (speed, obstacle amount) over time
 - [ ] Display scoreboard at the end
 
+## Architecture
+
+- UI: Built by Brick. Shows the game start page, score board and game over page.
+
+## Challenges
+
+- TODO
+
+## Progress
+
+- Successfully create the game start page and jump from it to game playing page.
+
 ## Team Members
 - Shiting Ding (s1ding@ucsd.edu)
 - Zhiyuan Chai (zhchai@ucsd.edu)
