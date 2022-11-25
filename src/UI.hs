@@ -80,6 +80,8 @@ main = do
 
 handleEvent :: Game -> BrickEvent Name Tick -> EventM Name (Next Game)
 handleEvent g@Game{_state = 0} (VtyEvent ev)		= handleStartPage g ev
+handleEvent g@Game{_dead = True} (VtyEvent ev) 		= liftIO (writeMaxScore g) >>= halt
+handleEvent g@Game{_state = 3} (VtyEvent ev)		= handleDiffPage g ev
 handleEvent g (AppEvent Tick)                       = continue $ step g
 handleEvent g (VtyEvent (V.EvKey V.KUp []))         = continue $ turn North g
 handleEvent g (VtyEvent (V.EvKey (V.KChar 'r') [])) = liftIO (initGame) >>= continue
@@ -94,19 +96,44 @@ handleStartPage g ev = case ev of
   V.EvKey V.KEnter [] -> do
     dialog <- D.handleDialogEvent ev (_startPageChoices g)
     case (D.dialogSelection dialog) of
-      Just 0  -> Brick.continue (g {_state = 1})
+      Just 0  -> Brick.continue (g {_state = 3})
       Just 1  -> Brick.halt g
       Nothing -> Brick.continue (g {_state = 0})
   _ -> do
     dialog <- D.handleDialogEvent ev (_startPageChoices g)
     Brick.continue (g {_startPageChoices = dialog})
-  
+    
+handleDiffPage :: Game -> V.Event -> EventM n (Next Game)
+handleDiffPage g ev = case ev of
+  V.EvKey V.KEsc []   -> Brick.continue (g {_state = 0})
+  V.EvKey V.KEnter [] -> do
+    dialog <- D.handleDialogEvent ev (_diffPageChoices g)
+    case (D.dialogSelection dialog) of
+      Just 0  -> Brick.continue (g {_state = 1, _difficulty = 0})
+      Just 1  -> Brick.continue (g {_state = 1, _difficulty = 1})
+      Just 2  -> Brick.continue (g {_state = 1, _difficulty = 2})
+      Nothing -> Brick.continue (g {_state = 0})
+  _ -> do
+    dialog <- D.handleDialogEvent ev (_diffPageChoices g)
+    Brick.continue (g {_diffPageChoices = dialog})
+
+writeMaxScore :: Game -> IO Game
+writeMaxScore g@Game {_score = s} = do
+  _ <- writeFile "data/max_score.txt" (show s)
+  return g
+
 -- Drawing
 
 drawUI :: Game -> [Widget Name]
 drawUI g@Game{_state = 0} = drawStartPage g
 drawUI g@Game{_state = 1} = drawPlayPage g
 drawUI g@Game{_state = 2} = drawEndPage g
+drawUI g@Game{_state = 3} = drawDiffPage g
+
+drawDiffPage :: Game -> [Widget n]
+drawDiffPage g = [ui]
+  where
+    ui = D.renderDialog (_diffPageChoices g) $ C.hCenter $ padAll 1 $ str "   "
   
 drawStartPage :: Game -> [Widget n]
 drawStartPage g = [ui]
@@ -130,19 +157,42 @@ drawPlayPage g@Game{_dead=d} = if d then [ C.center $ padRight (Pad 2) (drawStat
 drawPlayUI :: Game -> [Widget Name]
 drawPlayUI g = [ C.center $ padRight (Pad 2) (drawStats g) <+> drawGridSingle g ]
 
+--drawStats :: Game -> Widget Name
+--drawStats g = hLimit 30 
+--(vBox [drawGameOver (g^.alive), 
+--padTop (Pad 2) (drwaMode (g^.mode)), 
+--padTop (Pad 2) (drawDepth (g^.depth)), 
+--padTop (Pad 2) (drawBestDepth (g^.maxDepth))])
+
+
 drawStats :: Game -> Widget Name
 drawStats g@Game{_dead = d} = 
   if d==False 
   then 
-      hLimit 11 $ vBox [ drawScore (g ^. score)
-         , padTop (Pad 2) $ emptyWidget
-         ]
+      hLimit 11 $ vBox [ emptyWidget
+      					,padTop (Pad 2) (drawScore (g ^. score))
+      					,padTop (Pad 2) (drawMaxScore (_max_score g))]
+--      				,padTop (Pad 2) (drawMode (g ^. _difficulty)) ]
   else
     drawGameOver g
 
 drawScore :: Int -> Widget Name
 drawScore n = withBorderStyle BS.unicodeBold
   $ B.borderWithLabel (str "Score")
+  $ C.hCenter
+  $ padAll 1
+  $ str $ show n
+
+drawMaxScore :: Int -> Widget Name
+drawMaxScore n = withBorderStyle BS.unicodeBold
+  $ B.borderWithLabel (str "Max Score")
+  $ C.hCenter
+  $ padAll 1
+  $ str $ show n
+  
+drawMode :: Int -> Widget Name
+drawMode n = withBorderStyle BS.unicodeBold
+  $ B.borderWithLabel (str "Mode")
   $ C.hCenter
   $ padAll 1
   $ str $ show n

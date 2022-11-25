@@ -9,7 +9,7 @@ module Dino
   , Direction(..)
   , Bush
   , Coord
-  , dead,  score, dino
+  , dead, score, dino
   , height, width
   , bushes
   ) where
@@ -29,6 +29,7 @@ import Linear.V2 (V2(..), _x, _y)
 import Control.Lens ((^.))
 import System.Random (Random (..), getStdRandom, newStdGen)
 import qualified Brick.Widgets.Dialog as D
+import Prelude hiding ((!!))
 import Data.Monoid
 
 -- Types
@@ -48,9 +49,12 @@ data Game = Game
   , _wall :: Int
   , _randP :: Int
   , _randPs :: Stream Int
-  , _state :: Int	        -- ^ 0:startPage, 1:playPage, 2:gameOverPage
+  , _state :: Int	        -- ^ 0:startPage, 1:playPage, 2:gameOverPage, 3:difficultyPage
+  , _difficulty :: Int
+  , _max_score :: Int
   , _history :: [Int]
   , _startPageChoices :: D.Dialog Int
+  , _diffPageChoices :: D.Dialog Int
   } -- deriving (Show)
 
 type Coord = V2 Int
@@ -74,8 +78,8 @@ makeLenses ''Game
 -- Constants
 
 height, width, gapSize, offset, initVelocity :: Int
-height = 60
-width = 60
+height = 30
+width = 30
 gapSize = height * 3 `div` 10
 offset = height `div` 6
 initVelocity = 5
@@ -199,7 +203,7 @@ dinoJump g@Game {_interval_len = len, _velocity = v} = if (getDinoY g == 0) then
               else g & velocity %~ (\_ -> 0) 
 
 increaseScore :: Game -> Game
-increaseScore g@Game {_score = s} = g & score .~ (s+5)
+increaseScore g@Game {_score = s, _max_score = mx} = g {_score = s + 5, _max_score = (max mx (s+5))}
 
 decreaseInterval :: Game -> Game
 decreaseInterval g@Game {_interval = i} = g & interval .~ (i-1)
@@ -223,6 +227,7 @@ initGame = do
   a <- drawInt (0 + offset) ((height `div` 3) + offset)
   b <- drawInt (0 + offset) ((height `div` 3) + offset)
   c <- drawInt (0 + offset) ((height `div` 3) + offset)
+  max_score_txt <- readFile "data/max_score.txt"
   let xm = 0
       ym = 0
       g  = Game
@@ -242,12 +247,17 @@ initGame = do
         , _wall = 0
         , _state = 0
         , _history = []
+        , _difficulty = 0
+        , _max_score = read max_score_txt :: Int
+        , _diffPageChoices = D.dialog (Just "Select Mode") (Just (0, [ ("Easy", 0),("Medium", 1),("Hard", 2) ])) 50
         , _startPageChoices = D.dialog (Just "Dino Run!!!") (Just (0, [ ("Start", 0),("Quit", 1) ])) 50
         }
   return g
 
 fromList :: [a] -> Stream a
 fromList = foldr (:|) (error "Streams must be infinite")
+
+
 
 
 leftDino :: Dino
