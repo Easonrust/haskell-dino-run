@@ -49,6 +49,7 @@ data Game = Game
   , _wall :: Int
   , _randP :: Int
   , _randPs :: Stream Int
+  , _lastBushPos :: Int
   , _state :: Int	        -- ^ 0:startPage, 1:playPage, 2:gameOverPage, 3:difficultyPage
   , _difficulty :: Int
   , _max_score :: Int
@@ -78,8 +79,8 @@ makeLenses ''Game
 -- Constants
 
 height, width, gapSize, offset, initVelocity :: Int
-height = 30
-width = 30
+height = 60
+width = 100
 gapSize = height * 3 `div` 10
 offset = height `div` 6
 initVelocity = 5
@@ -121,7 +122,7 @@ collide' :: Coord -> Bush -> Bool
 collide' dino bush = dino `elem` bush
 
 step':: Game -> Game
-step' = move . increaseScore . decreaseInterval
+step' = move . increaseScore . decreaseInterval . generateBush
 
 -- TODO: generate infinity bushes list
 -- generateBush :: MaybeT (State Game) ()
@@ -155,6 +156,7 @@ step' = move . increaseScore . decreaseInterval
 
 
 -- | Move dino along in a marquee fashion
+move :: Game -> Game
 move g@Game {_dino = (s :|> _), _dead = l, _score = sc, _interval = intr, _interval_len = len} =
   if (intr == 0) then
   (gravity g) & bushes %~ (fmap moveBush) & interval .~ (len) & velocity %~ (lossVelocity 1)
@@ -208,6 +210,11 @@ increaseScore g@Game {_score = s, _max_score = mx} = g {_score = s + 5, _max_sco
 decreaseInterval :: Game -> Game
 decreaseInterval g@Game {_interval = i} = g & interval .~ (i-1)
 
+generateBush :: Game -> Game
+generateBush g@Game {_lastBushPos = l} = g & bushes %~ (S.|> (makeBush newlastBP)) & lastBushPos .~ newlastBP
+    where newlastBP = unsafePerformIO (drawInt (l+20) (l+30))
+
+
 
 -- | Turn game direction (only turns orthogonally)
 --
@@ -224,9 +231,9 @@ initGame = do
   (randp :| randps) <-
     fromList . randomRs (0 + offset, (height `div` 3) + offset) <$> newStdGen
   -- hard code initial bush length
-  a <- drawInt (0 + offset) ((height `div` 3) + offset)
-  b <- drawInt (0 + offset) ((height `div` 3) + offset)
-  c <- drawInt (0 + offset) ((height `div` 3) + offset)
+  a <- drawInt 40 50
+  b <- drawInt 70 80
+  c <- drawInt 100 120
   max_score_txt <- readFile "data/max_score.txt"
   let xm = 0
       ym = 0
@@ -243,7 +250,8 @@ initGame = do
         , _locked = False
         , _randP = randp
         , _randPs = randps
-        , _bushes = S.fromList [makeBush (width-1)]
+        , _bushes = S.fromList [makeBush a, makeBush b, makeBush c]
+        , _lastBushPos = c
         , _wall = 0
         , _state = 0
         , _history = []
