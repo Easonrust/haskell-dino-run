@@ -46,7 +46,7 @@ data Tick = Tick
 -- if we call this "Name" now.
 type Name = ()
 
-data Cell = Bush | Dino | Empty
+data Cell = Bush | Fruit| Dino | Empty
 
 -- App definition
 
@@ -223,9 +223,11 @@ drawGridSingle g = withBorderStyle BS.unicodeBold
     rows         = [hBox $ cellsInRow r | r <- [height-1,height-2..0]]
     cellsInRow y = [drawCoord (V2 x y) | x <- [0..width-1]]
     drawCoord    = drawCell . cellAt
+    -- NOTE: Please update this part when adding elements
     cellAt c
       | c `elem` g ^. dino   = Dino
       | isBush c (g^.bushes) = Bush
+      | isFruit c (g^.fruits) = Fruit
       | otherwise            = Empty
 
 isBush :: Coord -> Seq Bush -> Bool
@@ -235,11 +237,19 @@ isBush' :: Coord -> Bush -> Bool
 isBush' c b = c `elem` b
 isBush' _ _  = False
 
+isFruit :: Coord -> Seq Fruit -> Bool
+isFruit c fruitSeq = getAny $ foldMap (Any . isFruit' c) fruitSeq
+
+isFruit' :: Coord -> Fruit -> Bool
+isFruit' c fruit = c `elem` fruit
+isFruit' _ _  = False
+
 gapSize :: Int
 gapSize = height * 3 `div` 10
 
 drawCell :: Cell -> Widget Name
 drawCell Bush  = withAttr bushAttr cw
+drawCell Fruit  = withAttr fruitAttr cw
 drawCell Dino  = withAttr dinoAttr cw
 drawCell Empty = withAttr emptyAttr cw
 
@@ -249,6 +259,7 @@ cw = str "  "
 theMap :: AttrMap
 theMap = attrMap V.defAttr
   [ (bushAttr, V.blue `on` V.blue)
+  , (fruitAttr, V.green `on` V.green)
   , (dinoAttr, V.red `on` V.red)
   , (gameOverAttr, fg V.red `V.withStyle` V.bold)
   , (D.dialogAttr, V.white `on` V.blue)
@@ -261,5 +272,6 @@ gameOverAttr = "gameOver"
 
 bushAttr, dinoAttr, emptyAttr :: AttrName
 bushAttr = "bushAttr"
+fruitAttr = "fruitAttr"
 dinoAttr = "dinoAttr"
 emptyAttr = "emptyAttr"

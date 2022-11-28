@@ -7,11 +7,11 @@ module Dino
   , turn
   , Game(..)
   , Direction(..)
-  , Bush
+  , Bush,Fruit
   , Coord
   , dead, score, dino
   , height, width
-  , bushes
+  , bushes,fruits
   ) where
 import System.IO
 import System.IO.Unsafe
@@ -23,6 +23,8 @@ import Control.Lens hiding ((<|), (|>), (:>), (:<))
 import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.State
 import Control.Monad.Extra (orM)
+import Data.Foldable (toList)
+import Debug.Trace
 import Data.Sequence (Seq(..), (<|))
 import qualified Data.Sequence as S
 import Linear.V2 (V2(..), _x, _y)
@@ -38,6 +40,7 @@ data Game = Game
   { _dino  :: Dino  -- ^ snake as a sequence of points in N2
   , _dino_state :: DinoState
   , _bushes :: Seq Bush
+  , _fruits :: Seq Fruit
   , _velocity :: Int
   , _interval :: Int
   , _interval_len :: Int
@@ -50,6 +53,7 @@ data Game = Game
   , _randP :: Int
   , _randPs :: Stream Int
   , _lastBushPos :: Int
+  , _lastFruitPos :: Int
   , _state :: Int	        -- ^ 0:startPage, 1:playPage, 2:gameOverPage, 3:difficultyPage
   , _difficulty :: Int
   , _max_score :: Int
@@ -62,6 +66,7 @@ type Coord = V2 Int
 
 type Dino = Seq Coord
 type Bush = Seq Coord
+type Fruit = Seq Coord
 data DinoState = LeftDino | RightDino | JumpDino | DeadDino
 
 data Stream a = a :| Stream a
@@ -79,8 +84,8 @@ makeLenses ''Game
 -- Constants
 
 height, width, gapSize, offset, initVelocity :: Int
-height = 60
-width = 100
+height = 30
+width = 30
 gapSize = height * 3 `div` 10
 offset = height `div` 6
 initVelocity = 5
@@ -103,6 +108,7 @@ step s = flip execState s . runMaybeT $ do
 --   MaybeT . fmap Just $ locked .= False
 
   -- die (moved into boundary), eat (moved into food), or move (move into space)
+  -- die <|> MaybeT (Just <$> modify step')
   die <|> MaybeT (Just <$> modify step')
 
 die :: MaybeT (State Game) ()
@@ -114,6 +120,9 @@ die = do
 isDie :: Game -> Bool
 isDie g@Game {_dino = dino, _bushes = bushes} = getAny $ foldMap (Any . flip collide bushes) dino
 
+hitFruit :: Game -> Bool
+hitFruit g@Game {_dino = dino, _fruits = fruits} = getAny $ foldMap (Any . flip collide fruits) dino
+
 collide :: Coord -> Seq Bush -> Bool
 collide dino bushes = getAny $ foldMap (Any . collide' dino) bushes
 
@@ -122,7 +131,7 @@ collide' :: Coord -> Bush -> Bool
 collide' dino bush = dino `elem` bush
 
 step':: Game -> Game
-step' = move . increaseScore . decreaseInterval . generateBush
+step' = move . increaseScore . decreaseInterval . generateBush . generateFruit . checkFruit
 
 -- TODO: generate infinity bushes list
 -- generateBush :: MaybeT (State Game) ()
@@ -159,15 +168,19 @@ step' = move . increaseScore . decreaseInterval . generateBush
 move :: Game -> Game
 move g@Game {_dino = (s :|> _), _dead = l, _score = sc, _interval = intr, _interval_len = len} =
   if (intr == 0) then
-  (gravity g) & bushes %~ (fmap moveBush) & interval .~ (len) & velocity %~ (lossVelocity 1)
+  (gravity g) & bushes %~ (fmap moveBush) & interval .~ (len) & velocity %~ (lossVelocity 1) & fruits %~ (fmap moveFruit)
 --   else g & bushX .~ ((bushXs -1) `mod` width)
-  else g & bushes %~ (fmap moveBush)
+  else g & bushes %~ (fmap moveBush) & fruits %~ (fmap moveFruit)
 move _ = error "Dino can't be empty!"
 
 moveBush :: Bush -> Bush
 moveBush bush  = fmap (+ V2 (-1) 0) bush 
 
+moveFruit :: Fruit -> Fruit
+moveFruit fruit  = fmap (+ V2 (-1) 0) fruit 
+
 lossVelocity :: Int -> Int -> Int
+
 lossVelocity a v = if (v - a <= -initVelocity) then 
                     -initVelocity
                     else  v - a;
@@ -180,6 +193,26 @@ moveDino y game = if (getDinoY game + y <= 0) then
 
 getDinoY:: Game -> Int
 getDinoY g@Game{_dino = (s :|> x)} = x ^. _y
+
+deleteFruit :: Game -> Game
+deleteFruit g@Game{_fruits = (fruit :<| s)} = g & fruits .~ s
+
+checkFruit :: Game -> Game
+checkFruit g@Game{_score=s}= do 
+                if hitFruit g
+                  -- Add 100 pt, remove the fruit
+                  then deleteFruit g {_score = s+100}
+                  else removeOutLieFruit g
+                
+                
+
+removeOutLieFruit :: Game -> Game
+removeOutLieFruit g@Game{_fruits = ((co:<|fruit) :<| s)} = do
+                                                if (co^. _x) <0
+                                                  then  g & fruits .~ s
+                                                  else  g
+                                                
+
 
 gravity :: Game -> Game
 gravity g@Game {_velocity = v, _dino_state = state} = case (getDinoY g) of
@@ -214,6 +247,9 @@ generateBush :: Game -> Game
 generateBush g@Game {_lastBushPos = l} = g & bushes %~ (S.|> (makeBush newlastBP)) & lastBushPos .~ newlastBP
     where newlastBP = unsafePerformIO (drawInt (l+20) (l+30))
 
+generateFruit :: Game -> Game
+generateFruit g@Game {_lastFruitPos = l} = g & fruits %~ (S.|> (makeFruit newlastBP)) & lastFruitPos .~ newlastBP
+    where newlastBP = unsafePerformIO (drawInt (l+20) (l+30))
 
 
 -- | Turn game direction (only turns orthogonally)
@@ -252,6 +288,8 @@ initGame = do
         , _randPs = randps
         , _bushes = S.fromList [makeBush a, makeBush b, makeBush c]
         , _lastBushPos = c
+        , _fruits = S.fromList [makeFruit (a-4), makeFruit (b+4), makeFruit (c-4)]
+        , _lastFruitPos = c-1
         , _wall = 0
         , _state = 0
         , _history = []
@@ -291,6 +329,9 @@ initDino' file =  openFile file ReadMode >>= \handle ->
 makeBush :: Int -> Bush
 makeBush bushX = S.fromList [V2 bushX 0, V2 bushX 1, V2 bushX 2]
      
+makeFruit :: Int -> Fruit
+makeFruit fruitX = S.fromList [V2 fruitX 6]
+
 
 executeList :: [Int] -> Dino
 executeList (x:y:xs) = (S.singleton (V2 (y `div` 2) (x `div` 2))) S.>< (executeList xs);
