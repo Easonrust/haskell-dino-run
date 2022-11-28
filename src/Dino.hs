@@ -79,8 +79,8 @@ makeLenses ''Game
 -- Constants
 
 height, width, gapSize, offset, initVelocity :: Int
-height = 60
-width = 100
+height = 30
+width = 50
 gapSize = height * 3 `div` 10
 offset = height `div` 6
 initVelocity = 5
@@ -212,7 +212,7 @@ decreaseInterval g@Game {_interval = i} = g & interval .~ (i-1)
 
 generateBush :: Game -> Game
 generateBush g@Game {_lastBushPos = l} = g & bushes %~ (S.|> (makeBush newlastBP)) & lastBushPos .~ newlastBP
-    where newlastBP = unsafePerformIO (drawInt (l+20) (l+30))
+    where newlastBP = unsafePerformIO (drawInt (l+10) (l+15))
 
 
 
@@ -231,9 +231,9 @@ initGame = do
   (randp :| randps) <-
     fromList . randomRs (0 + offset, (height `div` 3) + offset) <$> newStdGen
   -- hard code initial bush length
-  a <- drawInt 40 50
-  b <- drawInt 70 80
-  c <- drawInt 100 120
+  a <- drawInt 20 25
+  b <- drawInt 35 40
+  c <- drawInt 50 60
   max_score_txt <- readFile "data/max_score.txt"
   let xm = 0
       ym = 0
@@ -293,7 +293,7 @@ makeBush bushX = S.fromList [V2 bushX 0, V2 bushX 1, V2 bushX 2]
      
 
 executeList :: [Int] -> Dino
-executeList (x:y:xs) = (S.singleton (V2 (y `div` 2) (x `div` 2))) S.>< (executeList xs);
+executeList (x:y:xs) = (S.singleton (V2 (y `div` 4) (x `div` 4))) S.>< (executeList xs);
 executeList _ = S.empty
 
 helperfnc :: [String] -> [Int]
