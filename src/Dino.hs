@@ -50,12 +50,14 @@ data Game = Game
   , _randP :: Int
   , _randPs :: Stream Int
   , _lastBushPos :: Int
+  , _tDelay :: Int
   , _state :: Int	        -- ^ 0:startPage, 1:playPage, 2:gameOverPage, 3:difficultyPage
   , _difficulty :: Int
   , _max_score :: Int
   , _history :: [Int]
   , _startPageChoices :: D.Dialog Int
   , _diffPageChoices :: D.Dialog Int
+  , _endPageChoices :: D.Dialog Int
   } -- deriving (Show)
 
 type Coord = V2 Int
@@ -254,11 +256,13 @@ initGame = do
         , _lastBushPos = c
         , _wall = 0
         , _state = 0
+        , _tDelay = 200000
         , _history = []
         , _difficulty = 0
         , _max_score = read max_score_txt :: Int
         , _diffPageChoices = D.dialog (Just "Select Mode") (Just (0, [ ("Easy", 0),("Medium", 1),("Hard", 2) ])) 50
         , _startPageChoices = D.dialog (Just "Dino Run!!!") (Just (0, [ ("Start", 0),("Quit", 1) ])) 50
+        , _endPageChoices = D.dialog (Just "Game Over") (Just (0, [ ("Restart", 0),("Quit", 1) ])) 50
         }
   return g
 
