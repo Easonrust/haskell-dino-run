@@ -69,10 +69,10 @@ split (c:cs)
 main :: IO ()
 main = do
   chan <- newBChan 10
+  g <- initGame
   forkIO $ forever $ do
     writeBChan chan Tick
-    threadDelay 400000 -- decides how fast your game moves
-  g <- initGame 
+    threadDelay 200000 -- decides how fast your game moves 
   let builder = V.mkVty V.defaultConfig
   initialVty <- builder
   void $ customMain initialVty builder (Just chan) app g
@@ -80,7 +80,8 @@ main = do
 
 handleEvent :: Game -> BrickEvent Name Tick -> EventM Name (Next Game)
 handleEvent g@Game{_state = 0} (VtyEvent ev)		= handleStartPage g ev
-handleEvent g@Game{_dead = True} (VtyEvent ev) 		= liftIO (writeMaxScore g) >>= halt
+handleEvent g@Game{_dead = True} (VtyEvent (V.EvKey (V.KChar 's') []))      = liftIO (writeMaxScore g) >>= continue
+handleEvent g@Game{_dead = True} (VtyEvent ev) 		= handleEndPage g ev --  >>= halt
 handleEvent g@Game{_state = 3} (VtyEvent ev)		= handleDiffPage g ev
 handleEvent g (AppEvent Tick)                       = continue $ step g
 handleEvent g (VtyEvent (V.EvKey V.KUp []))         = continue $ turn North g
@@ -109,13 +110,26 @@ handleDiffPage g ev = case ev of
   V.EvKey V.KEnter [] -> do
     dialog <- D.handleDialogEvent ev (_diffPageChoices g)
     case (D.dialogSelection dialog) of
-      Just 0  -> Brick.continue (g {_state = 1, _difficulty = 0})
-      Just 1  -> Brick.continue (g {_state = 1, _difficulty = 1})
-      Just 2  -> Brick.continue (g {_state = 1, _difficulty = 2})
+      Just 0  -> Brick.continue (g {_state = 1, _difficulty = 0, _tDelay = 200000})
+      Just 1  -> Brick.continue (g {_state = 1, _difficulty = 1, _tDelay = 150000})
+      Just 2  -> Brick.continue (g {_state = 1, _difficulty = 2, _tDelay = 100000})
       Nothing -> Brick.continue (g {_state = 0})
   _ -> do
     dialog <- D.handleDialogEvent ev (_diffPageChoices g)
     Brick.continue (g {_diffPageChoices = dialog})
+    
+handleEndPage :: Game -> V.Event -> EventM n (Next Game)
+handleEndPage g ev = case ev of
+  V.EvKey V.KEsc []   -> Brick.halt g
+  V.EvKey V.KEnter [] -> do
+    dialog <- D.handleDialogEvent ev (_endPageChoices g)
+    case (D.dialogSelection dialog) of
+      Just 0  -> liftIO (initGame) >>= continue
+      Just 1  -> Brick.halt g
+      Nothing -> Brick.continue g
+  _ -> do
+    dialog <- D.handleDialogEvent ev (_endPageChoices g)
+    Brick.continue (g {_endPageChoices = dialog})
 
 writeMaxScore :: Game -> IO Game
 writeMaxScore g@Game {_score = s} = do
@@ -144,15 +158,10 @@ drawEndPage :: Game -> [Widget n]
 drawEndPage g = [C.center $ padRight (Pad 2) (drawGameOver g)]
 
 drawGameOver :: Game -> Widget n
-drawGameOver g = 
-  vBox $
-    str "   Game Over" :
-    str " Your Score is: " :
-    (str <$>  ["\t" <>  (show i) | i <- [g ^.score] ])
-    
+drawGameOver g = D.renderDialog (_endPageChoices g) $ C.hCenter $ padAll 1 $ str (" Your Score is: " ++ show (g ^. score) ++ "\nPress s to save the score.")
 
 drawPlayPage :: Game -> [Widget Name]
-drawPlayPage g@Game{_dead=d} = if d then [ C.center $ padRight (Pad 2) (drawStats g)] else drawPlayUI g
+drawPlayPage g@Game{_dead=d} = if d then [ drawStats g ] else drawPlayUI g
 
 drawPlayUI :: Game -> [Widget Name]
 drawPlayUI g = [ C.center $ padRight (Pad 2) (drawStats g) <+> drawGridSingle g ]

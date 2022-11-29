@@ -54,12 +54,14 @@ data Game = Game
   , _randPs :: Stream Int
   , _lastBushPos :: Int
   , _lastFruitPos :: Int
+  , _tDelay :: Int
   , _state :: Int	        -- ^ 0:startPage, 1:playPage, 2:gameOverPage, 3:difficultyPage
   , _difficulty :: Int
   , _max_score :: Int
   , _history :: [Int]
   , _startPageChoices :: D.Dialog Int
   , _diffPageChoices :: D.Dialog Int
+  , _endPageChoices :: D.Dialog Int
   } -- deriving (Show)
 
 type Coord = V2 Int
@@ -85,7 +87,7 @@ makeLenses ''Game
 
 height, width, gapSize, offset, initVelocity :: Int
 height = 30
-width = 30
+width = 50
 gapSize = height * 3 `div` 10
 offset = height `div` 6
 initVelocity = 5
@@ -245,7 +247,7 @@ decreaseInterval g@Game {_interval = i} = g & interval .~ (i-1)
 
 generateBush :: Game -> Game
 generateBush g@Game {_lastBushPos = l} = g & bushes %~ (S.|> (makeBush newlastBP)) & lastBushPos .~ newlastBP
-    where newlastBP = unsafePerformIO (drawInt (l+20) (l+30))
+    where newlastBP = unsafePerformIO (drawInt (l+10) (l+15))
 
 generateFruit :: Game -> Game
 generateFruit g@Game {_lastFruitPos = l} = g & fruits %~ (S.|> (makeFruit newlastBP)) & lastFruitPos .~ newlastBP
@@ -267,9 +269,9 @@ initGame = do
   (randp :| randps) <-
     fromList . randomRs (0 + offset, (height `div` 3) + offset) <$> newStdGen
   -- hard code initial bush length
-  a <- drawInt 40 50
-  b <- drawInt 70 80
-  c <- drawInt 100 120
+  a <- drawInt 20 25
+  b <- drawInt 35 40
+  c <- drawInt 50 60
   max_score_txt <- readFile "data/max_score.txt"
   let xm = 0
       ym = 0
@@ -292,11 +294,13 @@ initGame = do
         , _lastFruitPos = c-1
         , _wall = 0
         , _state = 0
+        , _tDelay = 200000
         , _history = []
         , _difficulty = 0
         , _max_score = read max_score_txt :: Int
         , _diffPageChoices = D.dialog (Just "Select Mode") (Just (0, [ ("Easy", 0),("Medium", 1),("Hard", 2) ])) 50
         , _startPageChoices = D.dialog (Just "Dino Run!!!") (Just (0, [ ("Start", 0),("Quit", 1) ])) 50
+        , _endPageChoices = D.dialog (Just "Game Over") (Just (0, [ ("Restart", 0),("Quit", 1) ])) 50
         }
   return g
 
@@ -334,7 +338,7 @@ makeFruit fruitX = S.fromList [V2 fruitX 6]
 
 
 executeList :: [Int] -> Dino
-executeList (x:y:xs) = (S.singleton (V2 (y `div` 2) (x `div` 2))) S.>< (executeList xs);
+executeList (x:y:xs) = (S.singleton (V2 (y `div` 4) (x `div` 4))) S.>< (executeList xs);
 executeList _ = S.empty
 
 helperfnc :: [String] -> [Int]
