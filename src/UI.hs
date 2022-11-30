@@ -180,8 +180,8 @@ drawStats g@Game{_dead = d} =
   then 
       hLimit 11 $ vBox [ emptyWidget
       					,padTop (Pad 2) (drawScore (g ^. score))
-      					,padTop (Pad 2) (drawMaxScore (_max_score g))]
---      				,padTop (Pad 2) (drawMode (g ^. _difficulty)) ]
+      					,padTop (Pad 2) (drawMaxScore (_max_score g))
+	      				,padTop (Pad 2) (drawMode (_difficulty g)) ]
   else
     drawGameOver g
 
