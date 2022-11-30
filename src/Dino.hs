@@ -88,10 +88,10 @@ makeLenses ''Game
 
 height, width, gapSize, offset, initVelocity :: Int
 height = 30
-width = 50
+width = 100
 gapSize = height * 3 `div` 10
 offset = height `div` 6
-initVelocity = 4
+initVelocity = 5
 
 -- Functions
 split :: String -> [String] 
@@ -250,11 +250,11 @@ decreaseInterval g@Game {_interval = i} = g & interval .~ (i-1)
 
 generateBush :: Game -> Game
 generateBush g@Game {_lastBushPos = l, _difficulty=diff} = g & bushes %~ (S.|> (makeBush newlastBP)) & lastBushPos .~ newlastBP
-    where newlastBP = unsafePerformIO (drawInt ((2-diff)*10+l+10) ((2-diff)*10+l+30))
+    where newlastBP = unsafePerformIO (drawInt ((2-diff)*10+l+25) ((2-diff)*10+l+60))
 
 generateFruit :: Game -> Game
 generateFruit g@Game {_lastFruitPos = l} = g & fruits %~ (S.|> (makeFruit newlastBP)) & lastFruitPos .~ newlastBP
-    where newlastBP = unsafePerformIO (drawInt (l+20) (l+30))
+    where newlastBP = unsafePerformIO (drawInt (l+40) (l+60))
 
 
 -- | Turn game direction (only turns orthogonally)
@@ -272,9 +272,9 @@ initGame = do
   (randp :| randps) <-
     fromList . randomRs (0 + offset, (height `div` 3) + offset) <$> newStdGen
   -- hard code initial bush length
-  a <- drawInt 20 25
-  b <- drawInt 35 40
-  c <- drawInt 50 60
+  a <- drawInt 40 50
+  b <- drawInt 70 80
+  c <- drawInt 100 120
   max_score_txt <- readFile "data/max_score.txt"
   let xm = 0
       ym = 0
@@ -335,14 +335,14 @@ initDino' file =  openFile file ReadMode >>= \handle ->
     return (executeList (helperfnc (words contents)))
 
 makeBush :: Int -> Bush
-makeBush bushX = S.fromList [V2 bushX 0, V2 bushX 1, V2 bushX 2, V2 bushX 3, V2 bushX 4]
+makeBush bushX = S.fromList [V2 bushX 0, V2 (bushX+1) 0, V2 bushX 1, V2 (bushX+1) 1, V2 bushX 2, V2 (bushX+1) 2, V2 bushX 3, V2 (bushX+1) 3, V2 bushX 4, V2 (bushX+1) 4, V2 bushX 5, V2 (bushX+1) 5, V2 bushX 6, V2 (bushX+1) 6]
      
 makeFruit :: Int -> Fruit
-makeFruit fruitX = S.fromList [V2 fruitX 8]
+makeFruit fruitX = S.fromList [V2 fruitX 16]
 
 
 executeList :: [Int] -> Dino
-executeList (x:y:xs) = (S.singleton (V2 (y `div` 4) (x `div` 4))) S.>< (executeList xs);
+executeList (x:y:xs) = (S.singleton (V2 (y `div` 2) (x `div` 2))) S.>< (executeList xs);
 executeList _ = S.empty
 
 helperfnc :: [String] -> [Int]
