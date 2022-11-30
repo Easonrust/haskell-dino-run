@@ -46,6 +46,7 @@ data Game = Game
   , _interval_len :: Int
   , _dir    :: Direction    -- ^ direction
   , _dead   :: Bool         -- ^ game over flag
+  , _ingame :: Bool
   , _paused :: Bool         -- ^ paused flag
   , _score  :: Int          -- ^ score
   , _locked :: Bool   
@@ -90,7 +91,7 @@ height = 30
 width = 50
 gapSize = height * 3 `div` 10
 offset = height `div` 6
-initVelocity = 5
+initVelocity = 4
 
 -- Functions
 split :: String -> [String] 
@@ -104,7 +105,8 @@ step :: Game -> Game
 step s = flip execState s . runMaybeT $ do
 
   -- Make sure the game isn't paused or over
-  MaybeT $ guard . not <$> orM [use dead]
+  MaybeT $ guard . not <$> use dead
+  MaybeT $ guard <$> use ingame
 
   -- Unlock from last directional turn
 --   MaybeT . fmap Just $ locked .= False
@@ -117,6 +119,7 @@ die :: MaybeT (State Game) ()
 die = do
   MaybeT . fmap guard $ (isDie <$> get)
   MaybeT . fmap Just $ dead .= True
+  MaybeT . fmap Just $ ingame .= False
 
 -- TODO:
 isDie :: Game -> Bool
@@ -246,8 +249,8 @@ decreaseInterval :: Game -> Game
 decreaseInterval g@Game {_interval = i} = g & interval .~ (i-1)
 
 generateBush :: Game -> Game
-generateBush g@Game {_lastBushPos = l} = g & bushes %~ (S.|> (makeBush newlastBP)) & lastBushPos .~ newlastBP
-    where newlastBP = unsafePerformIO (drawInt (l+10) (l+15))
+generateBush g@Game {_lastBushPos = l, _difficulty=diff} = g & bushes %~ (S.|> (makeBush newlastBP)) & lastBushPos .~ newlastBP
+    where newlastBP = unsafePerformIO (drawInt ((2-diff)*10+l+10) ((2-diff)*10+l+30))
 
 generateFruit :: Game -> Game
 generateFruit g@Game {_lastFruitPos = l} = g & fruits %~ (S.|> (makeFruit newlastBP)) & lastFruitPos .~ newlastBP
@@ -284,6 +287,7 @@ initGame = do
         , _score  = 0
         , _dir    = South
         , _dead   = False
+        , _ingame = False
         , _paused = True
         , _locked = False
         , _randP = randp
@@ -331,10 +335,10 @@ initDino' file =  openFile file ReadMode >>= \handle ->
     return (executeList (helperfnc (words contents)))
 
 makeBush :: Int -> Bush
-makeBush bushX = S.fromList [V2 bushX 0, V2 bushX 1, V2 bushX 2]
+makeBush bushX = S.fromList [V2 bushX 0, V2 bushX 1, V2 bushX 2, V2 bushX 3, V2 bushX 4]
      
 makeFruit :: Int -> Fruit
-makeFruit fruitX = S.fromList [V2 fruitX 6]
+makeFruit fruitX = S.fromList [V2 fruitX 8]
 
 
 executeList :: [Int] -> Dino
