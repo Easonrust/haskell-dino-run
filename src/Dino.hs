@@ -211,8 +211,8 @@ decreaseInterval :: Game -> Game
 decreaseInterval g@Game {_interval = i} = g & interval .~ (i-1)
 
 generateBush :: Game -> Game
-generateBush g@Game {_lastBushPos = l} = g & bushes %~ (S.|> (makeBush newlastBP)) & lastBushPos .~ newlastBP
-    where newlastBP = unsafePerformIO (drawInt (l+10) (l+15))
+generateBush g@Game {_lastBushPos = l, _difficulty=diff} = g & bushes %~ (S.|> (makeBush newlastBP)) & lastBushPos .~ newlastBP
+    where newlastBP = unsafePerformIO (drawInt ((2-diff)*10+l+10) ((2-diff)*10+l+15))
 
 
 
@@ -250,7 +250,7 @@ initGame = do
         , _locked = False
         , _randP = randp
         , _randPs = randps
-        , _bushes = S.fromList [makeBush a, makeBush b, makeBush c]
+        , _bushes = S.fromList [makeBush c]
         , _lastBushPos = c
         , _wall = 0
         , _state = 0
