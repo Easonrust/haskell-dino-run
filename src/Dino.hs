@@ -12,6 +12,7 @@ module Dino
   , dead, score, dino
   , height, width
   , bushes,fruits
+  , prop_genGame
   ) where
 import System.IO
 import System.IO.Unsafe
