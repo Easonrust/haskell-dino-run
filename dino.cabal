@@ -25,3 +25,4 @@ executable dino
                      , random
                      , transformers
                      , vty
+                     , QuickCheck
