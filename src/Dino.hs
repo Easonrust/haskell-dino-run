@@ -33,6 +33,7 @@ import System.Random (Random (..), getStdRandom, newStdGen)
 import qualified Brick.Widgets.Dialog as D
 import Prelude hiding ((!!))
 import Data.Monoid
+import Test.QuickCheck 
 
 -- Types
 
@@ -64,6 +65,9 @@ data Game = Game
   , _diffPageChoices :: D.Dialog Int
   , _endPageChoices :: D.Dialog Int
   } -- deriving (Show)
+ 
+instance (Show Game) where
+	show g@Game{_score = s, _max_score = m} = show s ++ "-" ++ show m
 
 type Coord = V2 Int
 
@@ -347,3 +351,22 @@ executeList _ = S.empty
 
 helperfnc :: [String] -> [Int]
 helperfnc = map read
+
+
+---- properties/tests ----
+
+-- increaseScore :: Game -> Game
+-- increaseScore g@Game {_score = s, _max_score = mx} = g {_score = s + 5, _max_score = (max mx (s+5))}
+
+genGame :: Gen Game
+genGame = do
+	s <- chooseInt (0, 1000)
+	mx <- chooseInt (0, 1000)
+	let g = Game {_score = s, _max_score = mx}
+	return g
+
+prop_genGame :: Property
+prop_genGame = forAll genGame (\g -> (_score (increaseScore g)) == (_score g) + 5)
+
+
+
