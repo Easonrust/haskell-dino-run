@@ -376,21 +376,35 @@ diedDino = makeDino "image/out_dead.txt"
 makeDino :: String -> Dino
 makeDino file = unsafePerformIO (initDino' file)
 
+makeBush :: Int -> Bush
+makeBush indexY = moveBush indexY (unsafePerformIO (initBush' (randomBushFile indexY)))
+
+randomBushFile :: Int -> String
+randomBushFile x =
+  if (x `mod` 2 == 0) then
+  "image/out_bushA.txt"
+  else "image/out_bush.txt"
+
 initDino' :: String -> IO Dino
 initDino' file =  openFile file ReadMode >>= \handle ->
     hGetContents handle >>= \contents -> 
-    return (executeList (helperfnc (words contents)))
+    return (executeList (helperfnc (words contents)) 2)
 
-makeBush :: Int -> Bush
-makeBush bushX = S.fromList [V2 bushX 0, V2 (bushX+1) 0, V2 bushX 1, V2 (bushX+1) 1, V2 bushX 2, V2 (bushX+1) 2, V2 bushX 3, V2 (bushX+1) 3, V2 bushX 4, V2 (bushX+1) 4, V2 bushX 5, V2 (bushX+1) 5, V2 bushX 6, V2 (bushX+1) 6]
+initBush' :: String -> IO Bush
+initBush' file =  openFile file ReadMode >>= \handle ->
+    hGetContents handle >>= \contents -> 
+    return (executeList (helperfnc (words contents)) 1)
+
+--makeBush :: Int -> Bush
+--makeBush bushX = S.fromList [V2 bushX 0, V2 (bushX+1) 0, V2 bushX 1, V2 (bushX+1) 1, V2 bushX 2, V2 (bushX+1) 2, V2 bushX 3, V2 (bushX+1) 3, V2 bushX 4, V2 (bushX+1) 4, V2 bushX 5, V2 (bushX+1) 5, V2 bushX 6, V2 (bushX+1) 6]
      
 makeFruit :: Int -> Fruit
 makeFruit fruitX = S.fromList [V2 fruitX 16]
 
 
-executeList :: [Int] -> Dino
-executeList (x:y:xs) = (S.singleton (V2 (y `div` 2) (x `div` 2))) S.>< (executeList xs);
-executeList _ = S.empty
+executeList :: [Int] -> Int -> Seq Coord
+executeList (x:y:xs) zoom = (S.singleton (V2 (y `div` zoom) (x `div` zoom))) S.>< (executeList xs zoom);
+executeList _ zoom = S.empty
 
 helperfnc :: [String] -> [Int]
 helperfnc = map read
