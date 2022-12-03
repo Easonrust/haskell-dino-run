@@ -164,15 +164,7 @@ drawPlayPage :: Game -> [Widget Name]
 drawPlayPage g@Game{_dead=d} = if d then [ drawStats g ] else drawPlayUI g
 
 drawPlayUI :: Game -> [Widget Name]
-drawPlayUI g = [ C.center $ padRight (Pad 2) (drawStats g) <+> drawGridSingle g ]
-
---drawStats :: Game -> Widget Name
---drawStats g = hLimit 30 
---(vBox [drawGameOver (g^.alive), 
---padTop (Pad 2) (drwaMode (g^.mode)), 
---padTop (Pad 2) (drawDepth (g^.depth)), 
---padTop (Pad 2) (drawBestDepth (g^.maxDepth))])
-
+drawPlayUI g = [ C.center $ padRight (Pad 2) (drawStats g) <+> drawGrid g ]
 
 drawStats :: Game -> Widget Name
 drawStats g@Game{_dead = d} = 
@@ -206,26 +198,8 @@ drawMode n = withBorderStyle BS.unicodeBold
   $ padAll 1
   $ str $ show n
 
--- drawGameOver :: Game ->  Widget Name
--- drawGameOver g  =  vBox $ str "   Game Over" :
---                             str " Your Score is" :
---                             (str <$>  ["\t" <>  (show i) | i <- [g ^.score] ])
-
--- drawGrid :: Game -> Widget Name
--- drawGrid g = withBorderStyle BS.unicodeBold
---   $ B.borderWithLabel (str "Dino Run")
---   $ vBox rows
---   where
---     rows         = [hBox $ cellsInRow r | r <- [height-1,height-2..0]]
---     cellsInRow y = [drawCoord (V2 x y) | x <- [0..width-1]]
---     drawCoord    = drawCell . cellAt
---     cellAt c
---       | c `elem` g ^. dino = Dino
---       | isBush g c         = Bush
---       | otherwise          = Empty
-
-drawGridSingle :: Game -> Widget Name
-drawGridSingle g = withBorderStyle BS.unicodeBold
+drawGrid :: Game -> Widget Name
+drawGrid g = withBorderStyle BS.unicodeBold
   $ B.borderWithLabel (str "Dino Run")
   $ vBox rows
   where

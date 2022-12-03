@@ -145,37 +145,6 @@ collide' dino bush = dino `elem` bush
 step':: Game -> Game
 step' = move . increaseScore . decreaseInterval . generateBush . generateFruit . checkFruit
 
--- TODO: generate infinity bushes list
--- generateBush :: MaybeT (State Game) ()
--- generateBush = do
---   MaybeT . fmap guard $ (==) <$> (distanceToWall <$> get) <*> use wall
---   MaybeT . fmap Just $ do
---     get >>= \g -> modifying bushX (nextBushPos g)
---     nextRandomBush
-
--- nextRandomBush :: State Game ()
--- nextRandomBush =
---   do
---     (randp :| randps) <- use randPs
---     randPs .= randps
---     g <- get
---     let touchWall = _bushX g == 0
---     if touchWall
---       then nextRandomBush
---       else randP .= randp
-
-
---move bush to the left by decreasing the x-coord
--- nextBushPos :: Game -> Int -> Int
--- nextBushPos g x = (x -1) `mod` width
-
--- distanceToWall :: Game -> Int
--- distanceToWall Game {_bushX = bushXs} = minimum [x | x <- [bushXs]]
-
--- TODO collision and die
-
-
-
 -- | Move dino along in a marquee fashion
 move :: Game -> Game
 move g@Game {_bushes = bushs, _dino = (s :|> _), _dead = l, _score = sc, _interval = intr, _interval_len = len, _bush_veloc = move_v} =
@@ -252,15 +221,6 @@ gravity g@Game {_velocity = v, _dino_state = state} = case (getDinoY g) of
                     _ -> g & dino .~ (leftDino) & dino_state .~ (LeftDino))
               _ -> (moveDino v g)
                     
-
-lowboard :: Game -> Coord
-lowboard Game { _dir = d, _dino = (a :<| _) } 
-  | d == North = a & _y %~ (\y -> height) 
-lowboard _ = error "Dino can't be empty!"
-
--- dinoJump :: Game -> Coord
--- dinoJump Game { _dir = d, _dino = (a :<| _) } = a & _y %~ (\y -> (y + 3) )
--- TODO: gravity
 dinoJump :: Game -> Game
 dinoJump g@Game {_interval_len = len, _velocity = v} = if (getDinoY g == 0) then 
               moveDino initVelocity (g & velocity .~ (initVelocity - 1)  & interval .~ (len) & 
@@ -286,8 +246,6 @@ generateBush g@Game {_bushes = bs, _lastBushPos = l, _difficulty=diff, _bush_vel
         else newl
       newlastBP = unsafePerformIO (drawInt ((max l 0)+((2-diff)*7+10*(min (-veloc-2) 4)+25 )) ((max l 0) +((2-diff)*7+10*(min (-veloc-2) 4)+35)))
       
-  
-
 generateFruit :: Game -> Game
 generateFruit g@Game {_lastFruitPos = l, _fruits = fts} = g & fruits .~ (helpf fts) & lastFruitPos .~ (helpf2 fts l newlastBP)
     where 
@@ -300,7 +258,6 @@ generateFruit g@Game {_lastFruitPos = l, _fruits = fts} = g & fruits .~ (helpf f
         l
         else newl
       newlastBP = unsafePerformIO (drawInt (l+40) (l+60))
-
 
 -- | Turn game direction (only turns orthogonally)
 --
@@ -358,9 +315,6 @@ initGame = do
 fromList :: [a] -> Stream a
 fromList = foldr (:|) (error "Streams must be infinite")
 
-
-
-
 leftDino :: Dino
 leftDino = makeDino "image/out_left.txt"
 
@@ -395,9 +349,6 @@ initBush' file =  openFile file ReadMode >>= \handle ->
     hGetContents handle >>= \contents -> 
     return (executeList (helperfnc (words contents)) 1)
 
---makeBush :: Int -> Bush
---makeBush bushX = S.fromList [V2 bushX 0, V2 (bushX+1) 0, V2 bushX 1, V2 (bushX+1) 1, V2 bushX 2, V2 (bushX+1) 2, V2 bushX 3, V2 (bushX+1) 3, V2 bushX 4, V2 (bushX+1) 4, V2 bushX 5, V2 (bushX+1) 5, V2 bushX 6, V2 (bushX+1) 6]
-     
 makeFruit :: Int -> Fruit
 makeFruit fruitX = S.fromList [V2 fruitX 16]
 
