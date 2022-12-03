@@ -44,6 +44,8 @@ data Game = Game
   , _bushes :: Seq Bush
   , _fruits :: Seq Fruit
   , _velocity :: Int
+  , _bush_veloc :: Int
+  , _bush_min_veloc :: Int
   , _interval :: Int
   , _interval_len :: Int
   , _dir    :: Direction    -- ^ direction
@@ -176,24 +178,42 @@ step' = move . increaseScore . decreaseInterval . generateBush . generateFruit .
 
 -- | Move dino along in a marquee fashion
 move :: Game -> Game
-move g@Game {_dino = (s :|> _), _dead = l, _score = sc, _interval = intr, _interval_len = len} =
+move g@Game {_bushes = bushs, _dino = (s :|> _), _dead = l, _score = sc, _interval = intr, _interval_len = len, _bush_veloc = move_v} =
   if (intr == 0) then
-  (gravity g) & bushes %~ (fmap moveBush) & interval .~ (len) & velocity %~ (lossVelocity 1) & fruits %~ (fmap moveFruit)
+  (gravity g) & bushes .~ (S.filter cleanDieBush (fmap (moveBush move_v) bushs)) & interval .~ (len) & velocity %~ (lossVelocity 1) & fruits %~ (fmap (moveFruit move_v)) & bush_veloc .~ (max (-(sc `div` 1000) - 2) (-5)) & lastBushPos %~ (moveLastBush move_v)
 --   else g & bushX .~ ((bushXs -1) `mod` width)
-  else g & bushes %~ (fmap moveBush) & fruits %~ (fmap moveFruit)
+  else g & bushes .~ (S.filter cleanDieBush (fmap (moveBush move_v) bushs)) & fruits %~ (fmap (moveFruit move_v)) & lastBushPos %~ (moveLastBush move_v)
 move _ = error "Dino can't be empty!"
 
-moveBush :: Bush -> Bush
-moveBush bush  = fmap (+ V2 (-1) 0) bush 
+moveBush :: Int -> Bush -> Bush
+moveBush v bush  = fmap (+ V2 v 0) bush 
 
-moveFruit :: Fruit -> Fruit
-moveFruit fruit  = fmap (+ V2 (-1) 0) fruit 
+moveFruit :: Int -> Fruit -> Fruit
+moveFruit v fruit  = fmap (+ V2 v 0) fruit 
+
+moveLastBush :: Int -> Int -> Int
+moveLastBush v last = last + v
 
 lossVelocity :: Int -> Int -> Int
 
 lossVelocity a v = if (v - a <= -initVelocity) then 
                     -initVelocity
                     else  v - a;
+lossBushVelocity :: Int -> Int -> Int
+lossBushVelocity v minv = if (v > minv) then
+                          v - 1
+                          else minv;
+
+cleanDieBush :: Bush -> Bool
+cleanDieBush b = if ((S.index b 0) ^. _y < 0 || (S.index b 0) ^. _x < 0) then
+                      False
+                      else True
+
+
+cleanDieFruit :: Fruit -> Bool
+cleanDieFruit (b :|> x) = if (x ^. _y < 0 || x ^. _x < 0) then
+                      False
+                      else True
 
 -- Move dino by y on the y axis
 moveDino :: Int -> Game -> Game
@@ -254,12 +274,32 @@ decreaseInterval :: Game -> Game
 decreaseInterval g@Game {_interval = i} = g & interval .~ (i-1)
 
 generateBush :: Game -> Game
-generateBush g@Game {_lastBushPos = l, _difficulty=diff} = g & bushes %~ (S.|> (makeBush newlastBP)) & lastBushPos .~ newlastBP
-    where newlastBP = unsafePerformIO (drawInt ((2-diff)*10+l+25) ((2-diff)*10+l+60))
+generateBush g@Game {_bushes = bs, _lastBushPos = l, _difficulty=diff, _bush_veloc = veloc} = g & bushes .~ (helpf bs) & lastBushPos .~ (helpf2 bs l newlastBP)
+    where 
+      helpf :: Seq Bush -> Seq Bush
+      helpf bushes = if ((S.length bushes > 2)) then
+        bushes
+        else (bushes S.|> (makeBush newlastBP)) 
+      helpf2 :: Seq Bush -> Int -> Int -> Int
+      helpf2 bs l newl = if ((S.length bs > 2)) then
+        l
+        else newl
+      newlastBP = unsafePerformIO (drawInt ((max l 0)+((2-diff)*7+10*(min (-veloc-2) 4)+25 )) ((max l 0) +((2-diff)*7+10*(min (-veloc-2) 4)+35)))
+      
+  
 
 generateFruit :: Game -> Game
-generateFruit g@Game {_lastFruitPos = l} = g & fruits %~ (S.|> (makeFruit newlastBP)) & lastFruitPos .~ newlastBP
-    where newlastBP = unsafePerformIO (drawInt (l+40) (l+60))
+generateFruit g@Game {_lastFruitPos = l, _fruits = fts} = g & fruits .~ (helpf fts) & lastFruitPos .~ (helpf2 fts l newlastBP)
+    where 
+      helpf :: Seq Fruit -> Seq Bush
+      helpf fruit = if ((S.length fruit > 10)) then
+        fruit
+        else (fruit S.|> (makeFruit newlastBP)) 
+      helpf2 :: Seq Fruit -> Int -> Int -> Int
+      helpf2 fruit l newl = if ((S.length fruit > 10)) then
+        l
+        else newl
+      newlastBP = unsafePerformIO (drawInt (l+40) (l+60))
 
 
 -- | Turn game direction (only turns orthogonally)
@@ -287,6 +327,8 @@ initGame = do
         { _dino  = leftDino
         , _dino_state = LeftDino
         , _velocity = 0
+        , _bush_veloc = -2
+        , _bush_min_veloc = -5
         , _interval = 1
         , _interval_len = 1
         , _score  = 0
@@ -297,13 +339,13 @@ initGame = do
         , _locked = False
         , _randP = randp
         , _randPs = randps
-        , _bushes = S.fromList [makeBush a, makeBush b, makeBush c]
-        , _lastBushPos = c
+        , _bushes = S.fromList [makeBush a]
+        , _lastBushPos = a
         , _fruits = S.fromList [makeFruit (a-4), makeFruit (b+4), makeFruit (c-4)]
         , _lastFruitPos = c-1
         , _wall = 0
         , _state = 0
-        , _tDelay = 200000
+        , _tDelay = 100000
         , _history = []
         , _difficulty = 0
         , _max_score = read max_score_txt :: Int
@@ -334,21 +376,35 @@ diedDino = makeDino "image/out_dead.txt"
 makeDino :: String -> Dino
 makeDino file = unsafePerformIO (initDino' file)
 
+makeBush :: Int -> Bush
+makeBush indexY = moveBush indexY (unsafePerformIO (initBush' (randomBushFile indexY)))
+
+randomBushFile :: Int -> String
+randomBushFile x =
+  if (x `mod` 2 == 0) then
+  "image/out_bushA.txt"
+  else "image/out_bush.txt"
+
 initDino' :: String -> IO Dino
 initDino' file =  openFile file ReadMode >>= \handle ->
     hGetContents handle >>= \contents -> 
-    return (executeList (helperfnc (words contents)))
+    return (executeList (helperfnc (words contents)) 2)
 
-makeBush :: Int -> Bush
-makeBush bushX = S.fromList [V2 bushX 0, V2 (bushX+1) 0, V2 bushX 1, V2 (bushX+1) 1, V2 bushX 2, V2 (bushX+1) 2, V2 bushX 3, V2 (bushX+1) 3, V2 bushX 4, V2 (bushX+1) 4, V2 bushX 5, V2 (bushX+1) 5, V2 bushX 6, V2 (bushX+1) 6]
+initBush' :: String -> IO Bush
+initBush' file =  openFile file ReadMode >>= \handle ->
+    hGetContents handle >>= \contents -> 
+    return (executeList (helperfnc (words contents)) 1)
+
+--makeBush :: Int -> Bush
+--makeBush bushX = S.fromList [V2 bushX 0, V2 (bushX+1) 0, V2 bushX 1, V2 (bushX+1) 1, V2 bushX 2, V2 (bushX+1) 2, V2 bushX 3, V2 (bushX+1) 3, V2 bushX 4, V2 (bushX+1) 4, V2 bushX 5, V2 (bushX+1) 5, V2 bushX 6, V2 (bushX+1) 6]
      
 makeFruit :: Int -> Fruit
 makeFruit fruitX = S.fromList [V2 fruitX 16]
 
 
-executeList :: [Int] -> Dino
-executeList (x:y:xs) = (S.singleton (V2 (y `div` 2) (x `div` 2))) S.>< (executeList xs);
-executeList _ = S.empty
+executeList :: [Int] -> Int -> Seq Coord
+executeList (x:y:xs) zoom = (S.singleton (V2 (y `div` zoom) (x `div` zoom))) S.>< (executeList xs zoom);
+executeList _ zoom = S.empty
 
 helperfnc :: [String] -> [Int]
 helperfnc = map read

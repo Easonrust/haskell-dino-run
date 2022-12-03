@@ -72,7 +72,7 @@ main = do
   g <- initGame
   forkIO $ forever $ do
     writeBChan chan Tick
-    threadDelay 200000 -- decides how fast your game moves 
+    threadDelay 100000 -- decides how fast your game moves 
   let builder = V.mkVty V.defaultConfig
   initialVty <- builder
   void $ customMain initialVty builder (Just chan) app g
@@ -110,8 +110,8 @@ handleDiffPage g ev = case ev of
   V.EvKey V.KEnter [] -> do
     dialog <- D.handleDialogEvent ev (_diffPageChoices g)
     case (D.dialogSelection dialog) of
-      Just 0  -> Brick.continue (g {_state = 1, _ingame = True, _difficulty = 0, _tDelay = 200000})
-      Just 1  -> Brick.continue (g {_state = 1, _ingame = True, _difficulty = 1, _tDelay = 150000})
+      Just 0  -> Brick.continue (g {_state = 1, _ingame = True, _difficulty = 0, _tDelay = 100000})
+      Just 1  -> Brick.continue (g {_state = 1, _ingame = True, _difficulty = 1, _tDelay = 100000})
       Just 2  -> Brick.continue (g {_state = 1, _ingame = True, _difficulty = 2, _tDelay = 100000})
       Nothing -> Brick.continue (g {_state = 0})
   _ -> do
