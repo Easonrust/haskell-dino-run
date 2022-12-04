@@ -12,7 +12,11 @@ module Dino
   , dead, score, dino
   , height, width
   , bushes,fruits
-  , prop_genGame
+  , prop_genGameScore
+  , prop_genGameInterval
+  , prop_genGameBushGenerate
+  , prop_genGameFruitGenerate
+  , prop_genGameMove
   ) where
 import System.IO
 import System.IO.Unsafe
@@ -128,7 +132,6 @@ die = do
   MaybeT . fmap Just $ dead .= True
   MaybeT . fmap Just $ ingame .= False
 
--- TODO:
 isDie :: Game -> Bool
 isDie g@Game {_dino = dino, _bushes = bushes} = getAny $ foldMap (Any . flip collide bushes) dino
 
@@ -368,13 +371,30 @@ helperfnc = map read
 
 genGame :: Gen Game
 genGame = do
-	s <- chooseInt (0, 1000)
-	mx <- chooseInt (0, 1000)
-	let g = Game {_score = s, _max_score = mx}
-	return g
+            s <- chooseInt (0, 1000)
+            mx <- chooseInt (0, 1000)
+            i <- chooseInt (0, 1000)
+            a <- chooseInt (40, 50)
+            b <- chooseInt (70, 80)
+            c <- chooseInt (100, 120)
+            diff <- chooseInt (0, 2)
+            let g = Game {_dino  = leftDino, _score = s, _max_score = mx, _interval = i, _interval_len = 1, _bushes = S.fromList [makeBush a], _lastBushPos = a, _fruits = S.fromList [makeFruit (a-4), makeFruit (b+4), makeFruit (c-4)], _lastFruitPos = c-1, _difficulty=diff, _bush_veloc = -2, _bush_min_veloc = -5}
+            return g
 
-prop_genGame :: Property
-prop_genGame = forAll genGame (\g -> (_score (increaseScore g)) == (_score g) + 5)
+prop_genGameScore :: Property
+prop_genGameScore = forAll genGame (\g -> (_score (increaseScore g)) == (_score g) + 5)
+
+prop_genGameInterval :: Property
+prop_genGameInterval = forAll genGame (\g -> (_interval (decreaseInterval g)) == (_interval g) - 1)
+
+prop_genGameBushGenerate :: Property
+prop_genGameBushGenerate = forAll genGame (\g -> (_lastBushPos (generateBush g)) > (_lastBushPos g))
+
+prop_genGameFruitGenerate :: Property
+prop_genGameFruitGenerate = forAll genGame (\g -> (_lastFruitPos (generateFruit g)) > (_lastFruitPos g))
+
+prop_genGameMove :: Property
+prop_genGameMove = forAll genGame (\g -> (_lastBushPos (move g)) < (_lastBushPos g))
 
 
 
