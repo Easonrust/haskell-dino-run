@@ -54,19 +54,13 @@ data Game = Game
   , _dir    :: Direction    -- ^ direction
   , _dead   :: Bool         -- ^ game over flag
   , _ingame :: Bool
-  , _paused :: Bool         -- ^ paused flag
   , _score  :: Int          -- ^ score
-  , _locked :: Bool   
-  , _wall :: Int
-  , _randP :: Int
-  , _randPs :: Stream Int
   , _lastBushPos :: Int
   , _lastFruitPos :: Int
   , _tDelay :: Int
   , _state :: Int	        -- ^ 0:startPage, 1:playPage, 2:gameOverPage, 3:difficultyPage
   , _difficulty :: Int
   , _max_score :: Int
-  , _history :: [Int]
   , _startPageChoices :: D.Dialog Int
   , _diffPageChoices :: D.Dialog Int
   , _endPageChoices :: D.Dialog Int
@@ -114,15 +108,9 @@ split (c:cs)
 step :: Game -> Game
 step s = flip execState s . runMaybeT $ do
 
-  -- Make sure the game isn't paused or over
   MaybeT $ guard . not <$> use dead
   MaybeT $ guard <$> use ingame
 
-  -- Unlock from last directional turn
---   MaybeT . fmap Just $ locked .= False
-
-  -- die (moved into boundary), eat (moved into food), or move (move into space)
-  -- die <|> MaybeT (Just <$> modify step')
   die <|> MaybeT (Just <$> modify step')
 
 die :: MaybeT (State Game) ()
@@ -273,8 +261,6 @@ drawInt x y = getStdRandom (randomR (x, y))
 
 initGame ::  IO Game
 initGame = do
-  (randp :| randps) <-
-    fromList . randomRs (0 + offset, (height `div` 3) + offset) <$> newStdGen
   -- hard code initial bush length
   a <- drawInt 40 50
   b <- drawInt 70 80
@@ -294,18 +280,12 @@ initGame = do
         , _dir    = South
         , _dead   = False
         , _ingame = False
-        , _paused = True
-        , _locked = False
-        , _randP = randp
-        , _randPs = randps
         , _bushes = S.fromList [makeBush a]
         , _lastBushPos = a
         , _fruits = S.fromList [makeFruit (a-4), makeFruit (b+4), makeFruit (c-4)]
         , _lastFruitPos = c-1
-        , _wall = 0
         , _state = 0
         , _tDelay = 100000
-        , _history = []
         , _difficulty = 0
         , _max_score = read max_score_txt :: Int
         , _diffPageChoices = D.dialog (Just "Select Mode") (Just (0, [ ("Easy", 0),("Medium", 1),("Hard", 2) ])) 50
