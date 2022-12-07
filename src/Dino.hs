@@ -42,7 +42,7 @@ import Test.QuickCheck
 -- Types
 
 data Game = Game
-  { _dino  :: Dino  -- ^ snake as a sequence of points in N2
+  { _dino  :: Dino  -- ^ dino as a sequence of points in N2
   , _dino_state :: DinoState
   , _bushes :: Seq Bush
   , _fruits :: Seq Fruit
